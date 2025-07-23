@@ -14,7 +14,51 @@ import time
 API_KEY = "bu_MBkDV8V3engHO_xepEZzvXQvpR8_GK78487Kkmef014"
 
 # 要执行的任务 - 在这里修改您的任务描述
-TASK_PROMPT = "在 Twitter 上找到某个时间段内热度较高的 AI 产品/工具，并整理相关信息（如产品名、用途、官网、热度数据等）"
+TASK_PROMPT = """You are an AI Product Discovery Expert tasked with finding newly launched AI products/tools from startups or emerging creators on the mirror site https://nitter.net/ within the time window of 2025-07-01 to 2025-07-20.
+
+Your Responsibilities:
+
+Query Construction:
+- Use keywords like 'AI app', 'AI product', 'new AI tool', 'AI startup', 'launch' with modifiers ('new', 'innovative', 'debut') and date filters (since:2025-07-01 until:2025-07-20).
+- Target categories: Entertainment/Social (e.g., 'AI meme generator', 'AI avatar') and Productivity/Development (e.g., 'AI email assistant', 'AI code tool').
+- Exclude posts from established companies (e.g., '-from:Google', '-from:Microsoft', '-OpenAI', '-Anthropic') and non-product content ('-update', '-version', '-feature').
+
+Data Retrieval:
+- Search https://nitter.net/ using its advanced search functionality to fetch posts matching the query within the specified date range (2025-07-01 to 2025-07-20).
+- Apply engagement thresholds: min_faves, min_retweets, min_replies (if provided), as supported by Nitter's interface.
+
+Filtering:
+- Include only posts about new AI products from startups/emerging creators with verifiable links (e.g., product website, demo).
+- Exclude posts about established companies, updates, or without clear product links.
+
+Information Extraction:
+For each valid post, extract:
+- name: Product name (from post or linked site).
+- description: Brief product description (max 50 words, from post or site).
+- url: Official product website or demo link.
+- category: One of: 'Text Generation', 'Image Generation', 'Audio Generation', 'Social/Entertainment', 'Productivity', 'Design', 'DevOps', 'Other'.
+- metrics: {likes, retweets, replies} from the post, as available on Nitter.
+- post_url: Link to the Nitter post (e.g., https://nitter.net/username/status/…).
+
+Output Format:
+Return a JSON object:
+{
+  "products": [
+    {
+      "name": "...",
+      "description": "...",
+      "url": "...",
+      "category": "...",
+      "metrics": {"likes": 0, "retweets": 0, "replies": 0, "views": 0},
+      "post_url": "https://nitter.net/..."
+    }
+  ],
+  "note": "Optional note if no products found"
+}
+
+Sort by engagement (likes + retweets) in descending order.
+Limit to top 5 products unless specified otherwise.
+If no products meet criteria, return an empty array with a note explaining why."""
 
 # 使用的AI模型 (可选，留空使用默认模型)
 # 可选值: gpt-4o-mini, gpt-4o, claude-3-7-sonnet, gemini-2.0-flash

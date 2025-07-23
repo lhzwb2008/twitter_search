@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI产品Twitter搜索</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 AI产品Twitter搜索</h1>
+            <p class="subtitle">从Privacy Redirect Nitter发现最新的AI产品和工具</p>
+        </header>
+
+        <main>
+            <!-- 搜索控制面板 -->
+            <section class="search-panel">
+                <h2>搜索配置</h2>
+                
+                <!-- 参数配置表单 -->
+                <form id="search-form" class="search-form">
+                    <div class="form-grid">
+                        <!-- 时间范围 -->
+                        <div class="form-group">
+                            <label for="start-date">开始日期</label>
+                            <input type="date" id="start-date" name="startDate" value="2025-07-01" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="end-date">结束日期</label>
+                            <input type="date" id="end-date" name="endDate" value="2025-07-20" required>
+                        </div>
+                        
+                        <!-- 关键词 -->
+                        <div class="form-group full-width">
+                            <label for="keywords">搜索关键词</label>
+                            <div class="tag-input-container">
+                                <div id="keywords-tags" class="tags-list">
+                                    <span class="tag" data-value="AI app">AI app <button type="button" class="tag-remove">×</button></span>
+                                    <span class="tag" data-value="AI product">AI product <button type="button" class="tag-remove">×</button></span>
+                                    <span class="tag" data-value="new AI tool">new AI tool <button type="button" class="tag-remove">×</button></span>
+                                    <span class="tag" data-value="AI startup">AI startup <button type="button" class="tag-remove">×</button></span>
+                                    <span class="tag" data-value="launch">launch <button type="button" class="tag-remove">×</button></span>
+                                </div>
+                                <input type="text" id="keyword-input" placeholder="输入关键词后按回车添加">
+                            </div>
+                        </div>
+                        
+                        <!-- 修饰词 -->
+                        <div class="form-group full-width">
+                            <label for="modifiers">修饰词</label>
+                            <div class="tag-input-container">
+                                <div id="modifiers-tags" class="tags-list">
+                                    <span class="tag" data-value="new">new <button type="button" class="tag-remove">×</button></span>
+                                    <span class="tag" data-value="innovative">innovative <button type="button" class="tag-remove">×</button></span>
+                                    <span class="tag" data-value="debut">debut <button type="button" class="tag-remove">×</button></span>
+                                </div>
+                                <input type="text" id="modifier-input" placeholder="输入修饰词后按回车添加">
+                            </div>
+                        </div>
+                        
+                        <!-- 排除的公司 -->
+                        <div class="form-group full-width">
+                            <label for="exclude-companies">排除的公司</label>
+                            <div class="tag-input-container">
+                                <div id="exclude-companies-tags" class="tags-list">
+                                    <span class="tag" data-value="Google">Google <button type="button" class="tag-remove">×</button></span>
+                                    <span class="tag" data-value="Microsoft">Microsoft <button type="button" class="tag-remove">×</button></span>
+                                    <span class="tag" data-value="OpenAI">OpenAI <button type="button" class="tag-remove">×</button></span>
+                                    <span class="tag" data-value="Anthropic">Anthropic <button type="button" class="tag-remove">×</button></span>
+                                </div>
+                                <input type="text" id="exclude-company-input" placeholder="输入要排除的公司后按回车添加">
+                            </div>
+                        </div>
+                        
+                        <!-- 排除的内容 -->
+                        <div class="form-group full-width">
+                            <label for="exclude-content">排除的内容</label>
+                            <div class="tag-input-container">
+                                <div id="exclude-content-tags" class="tags-list">
+                                    <span class="tag" data-value="update">update <button type="button" class="tag-remove">×</button></span>
+                                    <span class="tag" data-value="version">version <button type="button" class="tag-remove">×</button></span>
+                                    <span class="tag" data-value="feature">feature <button type="button" class="tag-remove">×</button></span>
+                                </div>
+                                <input type="text" id="exclude-content-input" placeholder="输入要排除的内容后按回车添加">
+                            </div>
+                        </div>
+                        
+                        <!-- 结果限制 -->
+                        <div class="form-group">
+                            <label for="result-limit">结果数量限制</label>
+                            <input type="number" id="result-limit" name="resultLimit" value="5" min="1" max="20">
+                        </div>
+                        
+                        <!-- 目标分类 -->
+                        <div class="form-group">
+                            <label>目标分类</label>
+                            <div class="checkbox-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="categories" value="Entertainment/Social" checked>
+                                    娱乐/社交
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="categories" value="Productivity/Development" checked>
+                                    生产力/开发
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 高级选项（折叠） -->
+                    <details class="advanced-options">
+                        <summary>高级选项</summary>
+                        <div class="form-group full-width">
+                            <label for="custom-prompt">自定义Prompt（可选）</label>
+                            <textarea id="custom-prompt" rows="5" placeholder="留空使用自动生成的Prompt"></textarea>
+                        </div>
+                    </details>
+                    
+                    <div class="button-group">
+                        <button type="button" id="preview-prompt" class="secondary">预览生成的Prompt</button>
+                        <button type="submit" id="search-btn" class="primary">开始搜索</button>
+                    </div>
+                </form>
+
+                <!-- 任务状态和实时预览 -->
+                <div id="task-status" class="task-status hidden">
+                    <h3>任务执行中</h3>
+                    <p class="status-text">准备中...</p>
+                    
+                    <!-- 实时预览iframe -->
+                    <div id="live-preview" class="live-preview hidden">
+                        <div class="preview-header">
+                            <h4>🔴 实时预览</h4>
+                            <a href="#" target="_blank" class="preview-link">在新窗口打开</a>
+                        </div>
+                        <div class="preview-container">
+                            <iframe id="preview-iframe" src="" frameborder="0"></iframe>
+                        </div>
+                    </div>
+                    
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 搜索结果 -->
+            <section id="results" class="results-section hidden">
+                <h2>搜索结果</h2>
+                <div class="results-stats">
+                    <span class="product-count">找到 0 个产品</span>
+                    <span class="search-note"></span>
+                </div>
+                <div id="products-grid" class="products-grid">
+                    <!-- 产品卡片将动态插入这里 -->
+                </div>
+            </section>
+
+            <!-- 加载提示 -->
+            <div id="loading" class="loading hidden">
+                <div class="spinner"></div>
+                <p class="loading-text">正在搜索AI产品...</p>
+                <p class="loading-hint">预计需要5-10分钟，您可以先去忙其他事情 ☕</p>
+            </div>
+        </main>
+
+        <footer>
+            <p>Powered by Browser-use API | <a href="https://browser-use.com" target="_blank">了解更多</a></p>
+        </footer>
+    </div>
+
+    <!-- 产品卡片模板 -->
+    <template id="product-card-template">
+        <article class="product-card">
+            <div class="product-header">
+                <h3 class="product-name"></h3>
+                <span class="product-category"></span>
+            </div>
+            <p class="product-description"></p>
+            <div class="product-metrics">
+                <span class="metric likes">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                    </svg>
+                    <span class="count">0</span>
+                </span>
+                <span class="metric retweets">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M17 1l4 4-4 4"></path>
+                        <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                        <path d="M7 23l-4-4 4-4"></path>
+                        <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+                    </svg>
+                    <span class="count">0</span>
+                </span>
+                <span class="metric replies">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    <span class="count">0</span>
+                </span>
+            </div>
+            <div class="product-links">
+                <a href="#" class="product-url" target="_blank">访问产品</a>
+                <a href="#" class="post-url" target="_blank">查看推文</a>
+            </div>
+        </article>
+    </template>
+
+    <!-- Prompt预览模态框 -->
+    <div id="prompt-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>生成的搜索Prompt</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <pre id="generated-prompt"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html> 
