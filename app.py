@@ -241,4 +241,5 @@ def parse_task_result(result):
     return result
 
 if __name__ == '__main__':
-    app.run(debug=True, host='127.0.0.1', port=3000) 
+    # 在生产环境中监听所有网络接口
+    app.run(debug=False, host='0.0.0.0', port=3000) 
