@@ -6,6 +6,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const searchBtn = document.getElementById('search-btn');
     const taskStatus = document.getElementById('task-status');
     const statusText = document.querySelector('.status-text');
+    const taskControls = document.getElementById('task-controls');
+    const checkResultBtn = document.getElementById('check-result-btn');
+    const refreshPreviewBtn = document.getElementById('refresh-preview-btn');
+    const taskIdDisplay = document.getElementById('task-id-display');
     const livePreview = document.getElementById('live-preview');
     const previewIframe = document.getElementById('preview-iframe');
     const previewLink = document.querySelector('.preview-link');
@@ -30,6 +34,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // 事件监听器
     searchForm.addEventListener('submit', handleSearch);
     previewPromptBtn.addEventListener('click', showPromptPreview);
+    checkResultBtn.addEventListener('click', manualCheckResult);
+    refreshPreviewBtn.addEventListener('click', refreshPreview);
     modalClose.addEventListener('click', closeModal);
     promptModal.addEventListener('click', function(e) {
         if (e.target === promptModal) {
@@ -202,6 +208,10 @@ If no products meet criteria, return an empty array with a note explaining why.`
 
             currentTaskId = data.task_id;
             
+            // 显示任务控制面板
+            taskControls.classList.remove('hidden');
+            taskIdDisplay.textContent = `任务ID: ${currentTaskId}`;
+            
             // 显示实时预览
             if (data.live_url) {
                 showLivePreview(data.live_url);
@@ -227,10 +237,45 @@ If no products meet criteria, return an empty array with a note explaining why.`
         console.log('[DEBUG] live preview should now be visible');
     }
 
+    // 手动检查结果
+    async function manualCheckResult() {
+        if (!currentTaskId) {
+            alert('没有正在执行的任务');
+            return;
+        }
+
+        checkResultBtn.disabled = true;
+        checkResultBtn.textContent = '检查中...';
+
+        try {
+            await checkTaskStatus();
+        } catch (error) {
+            console.error('手动检查结果失败:', error);
+            alert('检查结果失败: ' + error.message);
+        } finally {
+            checkResultBtn.disabled = false;
+            checkResultBtn.textContent = '手动检查结果';
+        }
+    }
+
+    // 刷新预览
+    function refreshPreview() {
+        if (previewIframe.src) {
+            console.log('[DEBUG] 刷新预览iframe');
+            const currentSrc = previewIframe.src;
+            previewIframe.src = '';
+            setTimeout(() => {
+                previewIframe.src = currentSrc;
+            }, 100);
+        } else {
+            alert('没有可刷新的预览');
+        }
+    }
+
     // 轮询任务状态
     function startStatusPolling() {
         let pollCount = 0;
-        const maxPolls = 120; // 最多轮询10分钟（5秒一次）
+        const maxPolls = 360; // 增加到30分钟（5秒一次）
 
         // 立即检查一次状态
         checkTaskStatus();
@@ -240,8 +285,10 @@ If no products meet criteria, return an empty array with a note explaining why.`
             
             if (pollCount > maxPolls) {
                 clearInterval(statusCheckInterval);
-                statusText.textContent = '任务超时';
-                resetUI();
+                statusText.textContent = '任务执行时间过长，但可能仍在后台运行。请手动刷新页面检查结果。';
+                // 不重置UI，保持iframe显示
+                searchBtn.disabled = false;
+                searchBtn.textContent = '开始搜索';
                 return;
             }
 
@@ -290,7 +337,7 @@ If no products meet criteria, return an empty array with a note explaining why.`
     function updateStatusUI(status) {
         const statusMap = {
             'created': '任务已创建，正在初始化浏览器...',
-            'running': '🔍 AI正在搜索中... 预计还需5-8分钟',
+            'running': '🔍 AI正在搜索中... 这可能需要20-30分钟',
             'finished': '✅ 搜索完成！',
             'failed': '❌ 任务失败',
             'stopped': '⏹️ 任务已停止'
@@ -310,7 +357,7 @@ If no products meet criteria, return an empty array with a note explaining why.`
                 runningHint.style.marginTop = '0.5rem';
                 statusText.parentNode.insertBefore(runningHint, statusText.nextSibling);
             }
-            runningHint.textContent = '💡 提示：AI正在自动浏览Nitter并分析内容，您可以在下方查看实时执行过程';
+            runningHint.textContent = '💡 提示：AI正在执行多个搜索查询并分析内容，您可以在下方查看实时执行过程。如果预览消失，请点击"刷新预览"按钮。';
         }
     }
 
@@ -382,9 +429,12 @@ If no products meet criteria, return an empty array with a note explaining why.`
         searchBtn.disabled = false;
         searchBtn.textContent = '开始搜索';
         taskStatus.classList.add('hidden');
+        taskControls.classList.add('hidden');
         loading.classList.add('hidden');
         livePreview.classList.add('hidden');
         previewIframe.src = '';
+        taskIdDisplay.textContent = '';
+        currentTaskId = null;
         
         if (statusCheckInterval) {
             clearInterval(statusCheckInterval);

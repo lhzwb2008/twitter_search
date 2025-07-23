@@ -267,6 +267,28 @@ button:disabled {
     margin-bottom: 1rem;
 }
 
+/* 任务控制 */
+.task-controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background-color: var(--surface);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.task-id {
+    font-family: 'Monaco', 'Consolas', monospace;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    background-color: var(--background);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    margin-left: auto;
+}
+
 /* 实时预览 */
 .live-preview {
     margin: 1.5rem 0;
