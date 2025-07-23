@@ -34,11 +34,34 @@ export BROWSER_USE_API_KEY="your_api_key_here"
 
 ### 3. 运行应用
 
+**方式一：后台运行（推荐）**
+```bash
+./run.sh
+```
+
+**方式二：前台运行**
 ```bash
 python app.py
 ```
 
 应用将在 http://localhost:3000 启动
+
+### 4. 管理应用
+
+**查看状态**
+```bash
+./status.sh
+```
+
+**停止应用**
+```bash
+./stop.sh
+```
+
+**查看日志**
+```bash
+tail -f nohup.out
+```
 
 ## 使用说明
 

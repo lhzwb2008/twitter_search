@@ -26,6 +26,7 @@ Thumbs.db
 
 # Logs
 *.log
+nohup.out
 
 # Environment variables
 .env
