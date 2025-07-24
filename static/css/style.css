@@ -552,6 +552,24 @@ button:disabled {
     background-color: var(--background);
 }
 
+/* 置灰的链接 */
+.product-links a.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.product-url.disabled {
+    background-color: #9ca3af;
+    color: #f3f4f6;
+}
+
+.post-url.disabled {
+    background-color: #f9fafb;
+    color: #9ca3af;
+    border-color: #e5e7eb;
+}
+
 /* 加载动画 */
 .loading {
     text-align: center;
@@ -677,6 +695,17 @@ footer a:hover {
 /* 工具类 */
 .hidden {
     display: none !important;
+}
+
+/* 无结果提示 */
+.no-results {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: #6b7280;
+    font-size: 1.1rem;
+    background: #f9fafb;
+    border-radius: 8px;
+    border: 2px dashed #e5e7eb;
 }
 
 /* 响应式设计 */

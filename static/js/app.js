@@ -113,40 +113,55 @@ document.addEventListener('DOMContentLoaded', function() {
         const categories = Array.from(document.querySelectorAll('input[name="categories"]:checked'))
             .map(cb => cb.value);
 
-        // 构建简化的Prompt
+        // 构建灵活的Prompt
         const keywordStr = keywords.length > 0 ? keywords.join(' OR ') : 'AI app';
         const excludeStr = excludeCompanies.length > 0 ? excludeCompanies.map(c => `-from:${c}`).join(' ') : '-from:Google -from:Microsoft -from:OpenAI';
         
-        let prompt = `Find ${resultLimit} newly launched AI products from startups on https://nitter.privacyredirect.com/ within ${startDate} to ${endDate}.
+        let prompt = `You are an AI Product Discovery Expert. Find at least ${resultLimit} AI-related products from Twitter mirror sites.
 
-Simple Search:
-- Query: "${keywordStr}" launch since:${startDate} until:${endDate} ${excludeStr}
-- Look for posts with product links (websites, demos)
-- Extract essential info only
+IMPORTANT: You MUST return at least ${resultLimit} AI products in JSON format. Follow these flexible strategies:
 
-For each product:
-- name: Product name
-- description: Brief description (max 20 words)
-- url: Product website/demo link
-- category: 'Text Generation', 'Image Generation', 'Productivity', or 'Other'
-- metrics: {likes, retweets, replies}
-- post_url: Nitter post link
+1. Try multiple Nitter instances:
+   - https://nitter.privacyredirect.com/
+   - https://nitter.net/
+   - https://nitter.poast.org/
+   - https://nitter.1d4.us/
 
-Output JSON:
+2. Search Flexibility:
+   - Start with: ${startDate} to ${endDate}
+   - If no results, expand date range
+   - Try multiple queries:
+     * "${keywordStr}" ${excludeStr}
+     * "new AI" OR "AI launch" OR "AI startup"
+     * "AI agent" OR "AI tool" OR "AI app"
+
+3. Result Requirements:
+   - MUST find at least ${resultLimit} AI products
+   - Include ANY AI products if exact matches aren't found
+   - Fill missing fields with empty strings
+
+4. Output Format (MANDATORY JSON ONLY):
 {
   "products": [
     {
-      "name": "...",
-      "description": "...",
-      "url": "...",
-      "category": "...",
+      "name": "Product Name",
+      "description": "Brief description",
+      "url": "https://productwebsite.com",
+      "category": "Productivity",
       "metrics": {"likes": 0, "retweets": 0, "replies": 0},
-      "post_url": "https://nitter.privacyredirect.com/..."
+      "post_url": "https://nitter.net/username/status/123456"
     }
   ]
 }
 
-Keep it simple: Find ${resultLimit} products maximum to complete quickly.`;
+URL GUIDELINES:
+- "url": Product's official website (NOT Nitter link)
+- "post_url": The Nitter post where you found this product
+- If no official website, set "url" to ""
+
+Categories: ${categories.length > 0 ? categories.join(', ') : "'Text Generation', 'Image Generation', 'Audio Generation', 'Video Generation', 'Productivity', 'Development', 'Other'"}
+
+CRITICAL: Return ONLY the JSON object, no explanations.`;
 
         return prompt;
     }
@@ -351,7 +366,7 @@ Keep it simple: Find ${resultLimit} products maximum to complete quickly.`;
 
     // 显示搜索结果
     function displayResults(data) {
-        if (!data || !data.products) {
+        if (!data) {
             resultsSection.classList.add('hidden');
             return;
         }
@@ -366,8 +381,12 @@ Keep it simple: Find ${resultLimit} products maximum to complete quickly.`;
             const totalCount = searchSummary.querySelector('.total-count');
             
             summaryText.textContent = data.summary;
-            if (data.total_found) {
+            if (data.total_found !== undefined) {
                 totalCount.textContent = `共找到 ${data.total_found} 个AI产品`;
+            } else if (data.products && data.products.length > 0) {
+                totalCount.textContent = `共找到 ${data.products.length} 个AI产品`;
+            } else {
+                totalCount.textContent = `未找到符合条件的AI产品`;
             }
             searchSummary.classList.remove('hidden');
         } else {
@@ -375,7 +394,7 @@ Keep it simple: Find ${resultLimit} products maximum to complete quickly.`;
         }
 
         // 更新统计信息
-        const count = data.products.length;
+        const count = data.products ? data.products.length : 0;
         productCount.textContent = `找到 ${count} 个产品`;
         searchNote.textContent = data.note || '';
 
@@ -393,10 +412,15 @@ Keep it simple: Find ${resultLimit} products maximum to complete quickly.`;
         resultsSection.classList.remove('hidden');
 
         // 渲染产品卡片
-        data.products.forEach(product => {
-            const card = createProductCard(product);
-            productsGrid.appendChild(card);
-        });
+        if (data.products && data.products.length > 0) {
+            data.products.forEach(product => {
+                const card = createProductCard(product);
+                productsGrid.appendChild(card);
+            });
+        } else {
+            // 显示无结果提示
+            productsGrid.innerHTML = '<div class="no-results">未找到符合条件的AI产品，请尝试调整搜索条件或时间范围。</div>';
+        }
 
         // 滚动到结果区域
         resultsSection.scrollIntoView({ behavior: 'smooth' });
@@ -422,16 +446,24 @@ Keep it simple: Find ${resultLimit} products maximum to complete quickly.`;
         const productUrl = card.querySelector('.product-url');
         const postUrl = card.querySelector('.post-url');
 
-        if (product.url) {
+        // 处理产品链接（官方网站）
+        if (product.url && product.url.trim() && product.url !== '#' && !product.url.includes('nitter')) {
             productUrl.href = product.url;
+            productUrl.classList.remove('disabled');
         } else {
-            productUrl.style.display = 'none';
+            productUrl.href = '#';
+            productUrl.classList.add('disabled');
+            productUrl.addEventListener('click', (e) => e.preventDefault());
         }
 
-        if (product.post_url) {
+        // 处理推文链接（Twitter/Nitter帖子）
+        if (product.post_url && product.post_url.trim() && product.post_url !== '#') {
             postUrl.href = product.post_url;
+            postUrl.classList.remove('disabled');
         } else {
-            postUrl.style.display = 'none';
+            postUrl.href = '#';
+            postUrl.classList.add('disabled');
+            postUrl.addEventListener('click', (e) => e.preventDefault());
         }
 
         return card;

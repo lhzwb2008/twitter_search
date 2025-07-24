@@ -18,37 +18,59 @@ app = Flask(__name__)
 API_KEY = os.environ.get('BROWSER_USE_API_KEY', 'bu_MBkDV8V3engHO_xepEZzvXQvpR8_GK78487Kkmef014')
 MODEL = "claude-sonnet-4-20250514"
 
-# 默认的搜索Prompt - 简化版
-DEFAULT_PROMPT = """You are an AI Product Discovery Expert. Find 2-3 newly launched AI products from startups on https://nitter.privacyredirect.com/ within 2025-06-01 to 2025-07-01.
+# 默认的搜索Prompt - 灵活版
+DEFAULT_PROMPT = """You are an AI Product Discovery Expert. Your goal is to find AI-related products from Twitter mirror sites.
 
-Quick Search Strategy:
-- Search: "AI app" launch since:2025-06-01 until:2025-07-01 -from:Google -from:Microsoft -from:OpenAI
-- Find posts with product links (websites, demos)
-- Extract only essential information
+IMPORTANT: You MUST return at least 3 AI products in JSON format. Follow these flexible strategies:
 
-For each product found:
-- name: Product name
-- description: Brief description (max 20 words)
-- url: Product website/demo link
-- category: 'Text Generation', 'Image Generation', 'Productivity', or 'Other'
-- metrics: {likes, retweets, replies}
-- post_url: Nitter post link
+1. Primary Strategy - Try multiple Nitter instances:
+   - https://nitter.privacyredirect.com/
+   - https://nitter.net/
+   - https://nitter.poast.org/
+   - https://nitter.1d4.us/
+   If one fails, try the next one.
 
-Output JSON:
-{
-  "products": [
-    {
-      "name": "...",
-      "description": "...",
-      "url": "...",
-      "category": "...",
-      "metrics": {"likes": 0, "retweets": 0, "replies": 0},
-      "post_url": "https://nitter.privacyredirect.com/..."
-    }
-  ]
-}
+2. Search Flexibility:
+   - Start with date range: 2025-06-01 to 2025-07-01
+   - If no results, expand to: 2025-05-01 to 2025-07-31
+   - If still no results, search last 90 days
+   - Try multiple queries:
+     * "AI app" OR "AI tool" launch
+     * "new AI" startup
+     * "launched AI" product
+     * "AI agent" OR "AI assistant"
+     * Just "AI" with recent filter
 
-Keep it simple: Find 2-3 products maximum to complete task quickly."""
+3. Result Requirements:
+   - MUST find at least 3 AI-related products
+   - If exact matches aren't found, include ANY AI products you find
+   - Products can be from any time period if needed
+   - Include products even without all details (fill missing with empty strings)
+
+4. Output Format (MANDATORY):
+   You MUST return ONLY a JSON object, no other text:
+   {
+     "products": [
+       {
+         "name": "Product Name",
+         "description": "Brief description",
+         "url": "https://productwebsite.com",
+         "category": "Productivity",
+         "metrics": {"likes": 0, "retweets": 0, "replies": 0, "views": 0},
+         "post_url": "https://nitter.net/username/status/123456"
+       }
+     ]
+   }
+
+   IMPORTANT URL GUIDELINES:
+   - "url": Product's official website/demo (NOT Nitter link)
+   - "post_url": The Nitter post where you found this product
+   - If no official website found, set "url" to empty string ""
+   - Always provide "post_url" with the actual Nitter post link
+
+Categories: 'Text Generation', 'Image Generation', 'Audio Generation', 'Video Generation', 'Productivity', 'Development', 'Other'
+
+CRITICAL: Return ONLY the JSON object, no explanations or markdown."""
 
 # 存储搜索结果的简单缓存
 search_cache = {}
