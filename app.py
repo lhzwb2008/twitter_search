@@ -18,10 +18,10 @@ API_KEY = os.environ.get('BROWSER_USE_API_KEY', 'bu_MBkDV8V3engHO_xepEZzvXQvpR8_
 MODEL = "claude-sonnet-4-20250514"
 
 # 默认的搜索Prompt - 简化版
-DEFAULT_PROMPT = """You are an AI Product Discovery Expert. Find 2-3 newly launched AI products from startups on https://nitter.privacyredirect.com/ within 2025-07-01 to 2025-07-20.
+DEFAULT_PROMPT = """You are an AI Product Discovery Expert. Find 2-3 newly launched AI products from startups on https://nitter.privacyredirect.com/ within 2025-06-01 to 2025-07-01.
 
 Quick Search Strategy:
-- Search: "AI app" launch since:2025-07-01 until:2025-07-20 -from:Google -from:Microsoft -from:OpenAI
+- Search: "AI app" launch since:2025-06-01 until:2025-07-01 -from:Google -from:Microsoft -from:OpenAI
 - Find posts with product links (websites, demos)
 - Extract only essential information
 
