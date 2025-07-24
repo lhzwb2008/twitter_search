@@ -10,6 +10,7 @@ import time
 import requests
 from datetime import datetime
 import os
+import re
 
 app = Flask(__name__)
 
@@ -104,12 +105,18 @@ def task_status(task_id):
     """获取任务状态"""
     status = get_task_status_from_api(task_id)
     
+    print(f"[DEBUG] 任务 {task_id} 状态: {status}")
+    
     # 如果任务完成，获取详细结果
     if status in ['finished', 'failed', 'stopped']:
         result = get_task_detail_from_api(task_id)
         
+        print(f"[DEBUG] 获取到任务详情，开始解析...")
+        
         # 尝试解析结果中的JSON
         products_data = parse_task_result(result)
+        
+        print(f"[DEBUG] 解析完成，产品数量: {len(products_data.get('products', []))}")
         
         # 缓存结果
         search_cache[task_id] = {
@@ -184,7 +191,15 @@ def get_task_status_from_api(task_id):
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+        # 返回状态字符串，而不是整个响应
+        if isinstance(data, dict) and 'status' in data:
+            return data['status']
+        elif isinstance(data, str):
+            return data
+        else:
+            print(f"[DEBUG] 未知的状态响应格式: {data}")
+            return str(data)
     except Exception as e:
         print(f"获取任务状态失败: {e}")
         return 'error'
@@ -209,30 +224,67 @@ def parse_task_result(result):
     if not result:
         return None
     
+    print(f"[DEBUG] 开始解析任务结果: {str(result)[:200]}...")
+    
     # 尝试从结果中提取JSON数据
     # Browser-use API可能将结果放在不同的字段中
-    for field in ['result', 'output', 'data', 'response']:
-        if field in result:
+    for field in ['result', 'output', 'data', 'response', 'content']:
+        if field in result and result[field]:
+            print(f"[DEBUG] 检查字段 '{field}'")
             try:
                 if isinstance(result[field], str):
-                    # 尝试解析JSON字符串
-                    data = json.loads(result[field])
-                    if 'products' in data:
-                        return data
+                    # 首先尝试提取嵌入的JSON
+                    json_data = extract_json_from_text(result[field])
+                    if json_data and 'products' in json_data:
+                        print(f"[DEBUG] 成功从文本中提取JSON数据")
+                        # 同时提取文本描述
+                        text_parts = result[field].split('{')[0].strip()
+                        if text_parts:
+                            # 解析文本部分获取summary和note
+                            text_data = parse_text_description(text_parts)
+                            json_data.update(text_data)
+                        return json_data
+                    
+                    # 如果没有找到嵌入的JSON，尝试直接解析为JSON
+                    try:
+                        data = json.loads(result[field])
+                        if 'products' in data:
+                            print(f"[DEBUG] 字段是纯JSON格式")
+                            return data
+                    except:
+                        pass
+                        
                 elif isinstance(result[field], dict) and 'products' in result[field]:
+                    print(f"[DEBUG] 字段已经是dict格式")
                     return result[field]
-            except:
+            except Exception as e:
+                print(f"[DEBUG] 处理字段 '{field}' 时出错: {e}")
                 continue
     
     # 如果没有找到JSON格式，尝试解析文本格式
     text_result = extract_text_from_result(result)
     if text_result:
+        print(f"[DEBUG] 尝试文本解析")
+        # 再次检查是否有嵌入的JSON
+        json_data = extract_json_from_text(text_result)
+        if json_data and 'products' in json_data:
+            print(f"[DEBUG] 从文本中找到JSON")
+            # 提取文本描述部分
+            text_parts = text_result.split('{')[0].strip()
+            if text_parts:
+                text_data = parse_text_description(text_parts)
+                json_data.update(text_data)
+            return json_data
+        
+        # 纯文本解析
+        print(f"[DEBUG] 使用纯文本解析")
         parsed_data = parse_text_result(text_result)
         if parsed_data and parsed_data.get('products'):
             return parsed_data
     
-    # 如果没有找到结构化数据，返回原始结果
-    return result
+    # 如果没有找到结构化数据，返回空结果而不是原始结果
+    print(f"[DEBUG] 未能解析出产品数据，返回空结果")
+    return {'products': [], 'summary': '未能解析搜索结果', 'note': '', 'total_found': 0}
 
 def extract_text_from_result(result):
     """从结果中提取文本内容"""
@@ -245,6 +297,83 @@ def extract_text_from_result(result):
             return result[field]
     
     return None
+
+def extract_json_from_text(text):
+    """从文本中提取JSON对象"""
+    try:
+        # 处理可能存在的 "json Copy" 或类似标记
+        text = text.replace('json\nCopy\n', '').replace('json Copy\n', '').replace('```json', '').replace('```', '')
+        
+        # 查找JSON开始和结束的位置
+        start_idx = text.find('{')
+        if start_idx == -1:
+            return None
+            
+        # 从开始位置查找匹配的结束括号
+        brace_count = 0
+        end_idx = start_idx
+        
+        for i in range(start_idx, len(text)):
+            if text[i] == '{':
+                brace_count += 1
+            elif text[i] == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    end_idx = i + 1
+                    break
+        
+        if end_idx > start_idx:
+            json_str = text[start_idx:end_idx]
+            print(f"[DEBUG] 提取的JSON字符串: {json_str[:100]}...")
+            parsed_json = json.loads(json_str)
+            print(f"[DEBUG] 成功解析JSON，产品数量: {len(parsed_json.get('products', []))}")
+            return parsed_json
+    except Exception as e:
+        print(f"[DEBUG] 提取JSON失败: {e}")
+    
+    return None
+
+def parse_text_description(text):
+    """解析文本描述部分，提取summary和note"""
+    lines = text.strip().split('\n')
+    summary_lines = []
+    note_lines = []
+    
+    # 查找关键分隔词
+    found_here_are = False
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        if "Here are" in line or "Products Found:" in line:
+            found_here_are = True
+            continue
+            
+        if not found_here_are:
+            summary_lines.append(line)
+        elif line.startswith("The search was") or line.startswith("All products"):
+            note_lines.append(line)
+    
+    summary = " ".join(summary_lines)
+    note = " ".join(note_lines)
+    
+    # 提取产品数量
+    total_found = 0
+    for line in summary_lines:
+        if "found" in line.lower() and any(char.isdigit() for char in line):
+            # 提取数字
+            import re
+            numbers = re.findall(r'\d+', line)
+            if numbers:
+                total_found = int(numbers[0])
+                break
+    
+    return {
+        'summary': summary,
+        'note': note,
+        'total_found': total_found
+    }
 
 def parse_text_result(text):
     """解析文本格式的搜索结果"""
