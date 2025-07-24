@@ -17,35 +17,23 @@ app = Flask(__name__)
 API_KEY = os.environ.get('BROWSER_USE_API_KEY', 'bu_MBkDV8V3engHO_xepEZzvXQvpR8_GK78487Kkmef014')
 MODEL = "claude-sonnet-4-20250514"
 
-# 默认的搜索Prompt
-DEFAULT_PROMPT = """You are an AI Product Discovery Expert tasked with finding newly launched AI products/tools from startups or emerging creators on the mirror site https://nitter.privacyredirect.com/ within the time window of 2025-07-01 to 2025-07-20.
+# 默认的搜索Prompt - 简化版
+DEFAULT_PROMPT = """You are an AI Product Discovery Expert. Find 2-3 newly launched AI products from startups on https://nitter.privacyredirect.com/ within 2025-07-01 to 2025-07-20.
 
-Your Responsibilities:
+Quick Search Strategy:
+- Search: "AI app" launch since:2025-07-01 until:2025-07-20 -from:Google -from:Microsoft -from:OpenAI
+- Find posts with product links (websites, demos)
+- Extract only essential information
 
-Query Construction:
-- Use keywords like 'AI app', 'AI product', 'new AI tool', 'AI startup', 'launch' with modifiers ('new', 'innovative', 'debut') and date filters (since:2025-07-01 until:2025-07-20).
-- Target categories: Entertainment/Social (e.g., 'AI meme generator', 'AI avatar') and Productivity/Development (e.g., 'AI email assistant', 'AI code tool').
-- Exclude posts from established companies (e.g., '-from:Google', '-from:Microsoft', '-OpenAI', '-Anthropic') and non-product content ('-update', '-version', '-feature').
+For each product found:
+- name: Product name
+- description: Brief description (max 20 words)
+- url: Product website/demo link
+- category: 'Text Generation', 'Image Generation', 'Productivity', or 'Other'
+- metrics: {likes, retweets, replies}
+- post_url: Nitter post link
 
-Data Retrieval:
-- Search https://nitter.privacyredirect.com/ using its advanced search functionality to fetch posts matching the query within the specified date range (2025-07-01 to 2025-07-20).
-- Apply engagement thresholds: min_faves, min_retweets, min_replies (if provided), as supported by Nitter's interface.
-
-Filtering:
-- Include only posts about new AI products from startups/emerging creators with verifiable links (e.g., product website, demo).
-- Exclude posts about established companies, updates, or without clear product links.
-
-Information Extraction:
-For each valid post, extract:
-- name: Product name (from post or linked site).
-- description: Brief product description (max 50 words, from post or site).
-- url: Official product website or demo link.
-- category: One of: 'Text Generation', 'Image Generation', 'Audio Generation', 'Social/Entertainment', 'Productivity', 'Design', 'DevOps', 'Other'.
-- metrics: {likes, retweets, replies} from the post, as available on Nitter.
-- post_url: Link to the Nitter post (e.g., https://nitter.privacyredirect.com/username/status/…).
-
-Output Format:
-Return a JSON object:
+Output JSON:
 {
   "products": [
     {
@@ -53,16 +41,13 @@ Return a JSON object:
       "description": "...",
       "url": "...",
       "category": "...",
-      "metrics": {"likes": 0, "retweets": 0, "replies": 0, "views": 0},
+      "metrics": {"likes": 0, "retweets": 0, "replies": 0},
       "post_url": "https://nitter.privacyredirect.com/..."
     }
-  ],
-  "note": "Optional note if no products found"
+  ]
 }
 
-Sort by engagement (likes + retweets) in descending order.
-Limit to top 5 products unless specified otherwise.
-If no products meet criteria, return an empty array with a note explaining why."""
+Keep it simple: Find 2-3 products maximum to complete task quickly."""
 
 # 存储搜索结果的简单缓存
 search_cache = {}

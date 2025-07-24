@@ -38,9 +38,6 @@
                             <div class="tag-input-container">
                                 <div id="keywords-tags" class="tags-list">
                                     <span class="tag" data-value="AI app">AI app <button type="button" class="tag-remove">×</button></span>
-                                    <span class="tag" data-value="AI product">AI product <button type="button" class="tag-remove">×</button></span>
-                                    <span class="tag" data-value="new AI tool">new AI tool <button type="button" class="tag-remove">×</button></span>
-                                    <span class="tag" data-value="AI startup">AI startup <button type="button" class="tag-remove">×</button></span>
                                     <span class="tag" data-value="launch">launch <button type="button" class="tag-remove">×</button></span>
                                 </div>
                                 <input type="text" id="keyword-input" placeholder="输入关键词后按回车添加">
@@ -52,9 +49,7 @@
                             <label for="modifiers">修饰词</label>
                             <div class="tag-input-container">
                                 <div id="modifiers-tags" class="tags-list">
-                                    <span class="tag" data-value="new">new <button type="button" class="tag-remove">×</button></span>
-                                    <span class="tag" data-value="innovative">innovative <button type="button" class="tag-remove">×</button></span>
-                                    <span class="tag" data-value="debut">debut <button type="button" class="tag-remove">×</button></span>
+                                    <!-- 默认为空，简化搜索 -->
                                 </div>
                                 <input type="text" id="modifier-input" placeholder="输入修饰词后按回车添加">
                             </div>
@@ -68,7 +63,6 @@
                                     <span class="tag" data-value="Google">Google <button type="button" class="tag-remove">×</button></span>
                                     <span class="tag" data-value="Microsoft">Microsoft <button type="button" class="tag-remove">×</button></span>
                                     <span class="tag" data-value="OpenAI">OpenAI <button type="button" class="tag-remove">×</button></span>
-                                    <span class="tag" data-value="Anthropic">Anthropic <button type="button" class="tag-remove">×</button></span>
                                 </div>
                                 <input type="text" id="exclude-company-input" placeholder="输入要排除的公司后按回车添加">
                             </div>
@@ -79,9 +73,7 @@
                             <label for="exclude-content">排除的内容</label>
                             <div class="tag-input-container">
                                 <div id="exclude-content-tags" class="tags-list">
-                                    <span class="tag" data-value="update">update <button type="button" class="tag-remove">×</button></span>
-                                    <span class="tag" data-value="version">version <button type="button" class="tag-remove">×</button></span>
-                                    <span class="tag" data-value="feature">feature <button type="button" class="tag-remove">×</button></span>
+                                    <!-- 默认为空，简化搜索 -->
                                 </div>
                                 <input type="text" id="exclude-content-input" placeholder="输入要排除的内容后按回车添加">
                             </div>
@@ -90,7 +82,7 @@
                         <!-- 结果限制 -->
                         <div class="form-group">
                             <label for="result-limit">结果数量限制</label>
-                            <input type="number" id="result-limit" name="resultLimit" value="5" min="1" max="20">
+                            <input type="number" id="result-limit" name="resultLimit" value="3" min="1" max="10">
                         </div>
                         
                         <!-- 目标分类 -->

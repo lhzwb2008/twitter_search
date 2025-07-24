@@ -113,35 +113,26 @@ document.addEventListener('DOMContentLoaded', function() {
         const categories = Array.from(document.querySelectorAll('input[name="categories"]:checked'))
             .map(cb => cb.value);
 
-        // 构建Prompt
-        let prompt = `You are an AI Product Discovery Expert tasked with finding newly launched AI products/tools from startups or emerging creators on the mirror site https://nitter.privacyredirect.com/ within the time window of ${startDate} to ${endDate}.
+        // 构建简化的Prompt
+        const keywordStr = keywords.length > 0 ? keywords.join(' OR ') : 'AI app';
+        const excludeStr = excludeCompanies.length > 0 ? excludeCompanies.map(c => `-from:${c}`).join(' ') : '-from:Google -from:Microsoft -from:OpenAI';
+        
+        let prompt = `Find ${resultLimit} newly launched AI products from startups on https://nitter.privacyredirect.com/ within ${startDate} to ${endDate}.
 
-Your Responsibilities:
+Simple Search:
+- Query: "${keywordStr}" launch since:${startDate} until:${endDate} ${excludeStr}
+- Look for posts with product links (websites, demos)
+- Extract essential info only
 
-Query Construction:
-- Use keywords like ${keywords.map(k => `'${k}'`).join(', ')}${modifiers.length > 0 ? ` with modifiers (${modifiers.map(m => `'${m}'`).join(', ')})` : ''} and date filters (since:${startDate} until:${endDate}).
-- Target categories: ${categories.join(' and ')} (e.g., 'AI meme generator', 'AI avatar' for Entertainment/Social; 'AI email assistant', 'AI code tool' for Productivity/Development).
-- Exclude posts from established companies (e.g., ${excludeCompanies.map(c => `'-from:${c}'`).join(', ')}, ${excludeCompanies.map(c => `'-${c}'`).join(', ')}) and non-product content (${excludeContent.map(c => `'-${c}'`).join(', ')}).
+For each product:
+- name: Product name
+- description: Brief description (max 20 words)
+- url: Product website/demo link
+- category: 'Text Generation', 'Image Generation', 'Productivity', or 'Other'
+- metrics: {likes, retweets, replies}
+- post_url: Nitter post link
 
-Data Retrieval:
-- Search https://nitter.privacyredirect.com/ using its advanced search functionality to fetch posts matching the query within the specified date range (${startDate} to ${endDate}).
-- Apply engagement thresholds: min_faves, min_retweets, min_replies (if provided), as supported by Nitter's interface.
-
-Filtering:
-- Include only posts about new AI products from startups/emerging creators with verifiable links (e.g., product website, demo).
-- Exclude posts about established companies, updates, or without clear product links.
-
-Information Extraction:
-For each valid post, extract:
-- name: Product name (from post or linked site).
-- description: Brief product description (max 50 words, from post or site).
-- url: Official product website or demo link.
-- category: One of: 'Text Generation', 'Image Generation', 'Audio Generation', 'Social/Entertainment', 'Productivity', 'Design', 'DevOps', 'Other'.
-- metrics: {likes, retweets, replies} from the post, as available on Nitter.
-- post_url: Link to the Nitter post (e.g., https://nitter.privacyredirect.com/username/status/…).
-
-Output Format:
-Return a JSON object:
+Output JSON:
 {
   "products": [
     {
@@ -149,16 +140,13 @@ Return a JSON object:
       "description": "...",
       "url": "...",
       "category": "...",
-      "metrics": {"likes": 0, "retweets": 0, "replies": 0, "views": 0},
+      "metrics": {"likes": 0, "retweets": 0, "replies": 0},
       "post_url": "https://nitter.privacyredirect.com/..."
     }
-  ],
-  "note": "Optional note if no products found"
+  ]
 }
 
-Sort by engagement (likes + retweets) in descending order.
-Limit to top ${resultLimit} products unless specified otherwise.
-If no products meet criteria, return an empty array with a note explaining why.`;
+Keep it simple: Find ${resultLimit} products maximum to complete quickly.`;
 
         return prompt;
     }
