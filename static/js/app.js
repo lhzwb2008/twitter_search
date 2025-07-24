@@ -340,7 +340,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
     function updateStatusUI(status) {
         const statusMap = {
             'created': '任务已创建，正在初始化浏览器...',
-            'running': '🔍 AI正在搜索中... 这可能需要20-30分钟',
+            'running': '🔍 AI正在搜索中... 预计需要10分钟左右',
             'finished': '✅ 搜索完成！',
             'failed': '❌ 任务失败',
             'stopped': '⏹️ 任务已停止'
