@@ -359,10 +359,35 @@ Keep it simple: Find ${resultLimit} products maximum to complete quickly.`;
         // 清空现有结果
         productsGrid.innerHTML = '';
 
+        // 显示搜索总结
+        const searchSummary = document.getElementById('search-summary');
+        if (data.summary) {
+            const summaryText = searchSummary.querySelector('.summary-text');
+            const totalCount = searchSummary.querySelector('.total-count');
+            
+            summaryText.textContent = data.summary;
+            if (data.total_found) {
+                totalCount.textContent = `共找到 ${data.total_found} 个AI产品`;
+            }
+            searchSummary.classList.remove('hidden');
+        } else {
+            searchSummary.classList.add('hidden');
+        }
+
         // 更新统计信息
         const count = data.products.length;
         productCount.textContent = `找到 ${count} 个产品`;
         searchNote.textContent = data.note || '';
+
+        // 显示搜索说明
+        const searchNoteSection = document.getElementById('search-note-section');
+        if (data.note) {
+            const noteText = searchNoteSection.querySelector('.note-text');
+            noteText.textContent = data.note;
+            searchNoteSection.classList.remove('hidden');
+        } else {
+            searchNoteSection.classList.add('hidden');
+        }
 
         // 显示结果区域
         resultsSection.classList.remove('hidden');

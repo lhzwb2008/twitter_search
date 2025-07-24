@@ -151,6 +151,8 @@ def get_prompt():
     """获取当前的搜索Prompt"""
     return jsonify({'prompt': DEFAULT_PROMPT})
 
+
+
 def create_browser_task(prompt):
     """创建Browser-use任务"""
     url = "https://api.browser-use.com/api/v1/run-task"
@@ -222,8 +224,147 @@ def parse_task_result(result):
             except:
                 continue
     
+    # 如果没有找到JSON格式，尝试解析文本格式
+    text_result = extract_text_from_result(result)
+    if text_result:
+        parsed_data = parse_text_result(text_result)
+        if parsed_data and parsed_data.get('products'):
+            return parsed_data
+    
     # 如果没有找到结构化数据，返回原始结果
     return result
+
+def extract_text_from_result(result):
+    """从结果中提取文本内容"""
+    if isinstance(result, str):
+        return result
+    
+    # 检查常见的文本字段
+    for field in ['result', 'output', 'data', 'response', 'content', 'message']:
+        if field in result and isinstance(result[field], str):
+            return result[field]
+    
+    return None
+
+def parse_text_result(text):
+    """解析文本格式的搜索结果"""
+    products = []
+    summary = ""
+    note = ""
+    
+    try:
+        # 提取搜索总结（第一段文字）
+        lines = text.strip().split('\n')
+        summary_lines = []
+        product_lines = []
+        note_lines = []
+        
+        # 分段解析
+        current_section = "summary"
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            if "Products Found:" in line:
+                current_section = "products"
+                continue
+            elif line.startswith("All products are") or line.startswith("The search was"):
+                current_section = "note"
+                
+            if current_section == "summary":
+                summary_lines.append(line)
+            elif current_section == "products":
+                product_lines.append(line)
+            elif current_section == "note":
+                note_lines.append(line)
+        
+        # 构建总结
+        summary = " ".join(summary_lines)
+        note = " ".join(note_lines)
+        
+        # 解析产品信息
+        for line in product_lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # 检查是否是产品描述行（包含 - 和分类）
+            if ' - ' in line and ('(' in line and ')' in line):
+                # 解析格式: "产品名 - 描述 (分类)"
+                parts = line.split(' - ', 1)
+                if len(parts) == 2:
+                    name = parts[0].strip()
+                    desc_and_category = parts[1].strip()
+                    
+                    # 提取分类（最后的括号内容）
+                    if '(' in desc_and_category and ')' in desc_and_category:
+                        last_paren = desc_and_category.rfind('(')
+                        category = desc_and_category[last_paren+1:].replace(')', '').strip()
+                        description = desc_and_category[:last_paren].strip()
+                    else:
+                        description = desc_and_category
+                        category = 'Other'
+                    
+                    product = {
+                        'name': name,
+                        'description': description,
+                        'url': '',  # 暂时为空，可以后续补充
+                        'category': category,
+                        'metrics': {'likes': 0, 'retweets': 0, 'replies': 0},
+                        'post_url': ''
+                    }
+                    products.append(product)
+        
+        # 如果没有找到明确的分段，尝试其他解析方式
+        if not products and "Products Found:" in text:
+            product_section = text.split("Products Found:")[1]
+            if "All products are" in product_section:
+                product_part = product_section.split("All products are")[0]
+                note = "All products are" + product_section.split("All products are")[1]
+            else:
+                product_part = product_section
+                
+            lines = product_part.strip().split('\n')
+            
+            for line in lines:
+                line = line.strip()
+                if line and ' - ' in line:
+                    parts = line.split(' - ', 1)
+                    if len(parts) == 2:
+                        name = parts[0].strip()
+                        desc = parts[1].strip()
+                        
+                        # 提取分类
+                        category = 'Other'
+                        if '(' in desc and ')' in desc:
+                            last_paren = desc.rfind('(')
+                            category = desc[last_paren+1:].replace(')', '').strip()
+                            desc = desc[:last_paren].strip()
+                        
+                        product = {
+                            'name': name,
+                            'description': desc,
+                            'url': '',
+                            'category': category,
+                            'metrics': {'likes': 0, 'retweets': 0, 'replies': 0},
+                            'post_url': ''
+                        }
+                        products.append(product)
+        
+        result = {
+            'products': products,
+            'summary': summary,
+            'note': note,
+            'total_found': len(products)
+        }
+        
+        print(f"[DEBUG] 解析到 {len(products)} 个产品，总结: {summary[:50]}...")
+        return result
+        
+    except Exception as e:
+        print(f"[DEBUG] 解析文本结果失败: {e}")
+        return {'products': [], 'summary': text, 'note': '', 'total_found': 0}
 
 if __name__ == '__main__':
     # 在生产环境中监听所有网络接口

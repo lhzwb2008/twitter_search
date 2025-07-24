@@ -369,6 +369,55 @@ button:disabled {
     margin-bottom: 1rem;
 }
 
+/* 搜索总结 */
+.search-summary {
+    background: linear-gradient(135deg, #f8f9ff 0%, #e8f2ff 100%);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border-left: 4px solid #4f46e5;
+}
+
+.search-summary h3 {
+    margin: 0 0 1rem 0;
+    color: #4f46e5;
+    font-size: 1.2rem;
+}
+
+.search-summary .summary-text {
+    color: #374151;
+    line-height: 1.6;
+    margin-bottom: 1rem;
+}
+
+.search-summary .total-count {
+    font-weight: 600;
+    color: #059669;
+    font-size: 1.1rem;
+}
+
+/* 搜索说明 */
+.search-note-section {
+    background: #f9fafb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-top: 2rem;
+    border: 1px solid #e5e7eb;
+}
+
+.search-note-section h4 {
+    margin: 0 0 1rem 0;
+    color: #6b7280;
+    font-size: 1rem;
+}
+
+.search-note-section .note-text {
+    color: #6b7280;
+    line-height: 1.6;
+    margin: 0;
+    font-size: 0.95rem;
+}
+
 .results-stats {
     display: flex;
     justify-content: space-between;
