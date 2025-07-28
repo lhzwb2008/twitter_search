@@ -11,12 +11,24 @@ import requests
 from datetime import datetime
 import os
 import re
+import pymysql
+from contextlib import contextmanager
 
 app = Flask(__name__)
 
 # 配置
 API_KEY = os.environ.get('BROWSER_USE_API_KEY', 'bu_MBkDV8V3engHO_xepEZzvXQvpR8_GK78487Kkmef014')
 MODEL = "claude-sonnet-4-20250514"
+
+# MySQL数据库配置
+MYSQL_CONFIG = {
+    'host': 'sh-cdb-kgv8etuq.sql.tencentcdb.com',
+    'port': 23333,
+    'user': 'root',
+    'password': 'Hello2025',
+    'database': 'twitter_search',
+    'charset': 'utf8mb4'
+}
 
 # 默认的搜索Prompt - 灵活版
 DEFAULT_PROMPT = """You are an AI Product Discovery Expert. Your goal is to find AI-related products from Twitter mirror sites.
@@ -74,6 +86,156 @@ CRITICAL: Return ONLY the JSON object, no explanations or markdown."""
 
 # 存储搜索结果的简单缓存
 search_cache = {}
+
+# 数据库连接管理
+@contextmanager
+def get_db_connection():
+    """获取数据库连接的上下文管理器"""
+    connection = None
+    try:
+        connection = pymysql.connect(**MYSQL_CONFIG)
+        yield connection
+    except Exception as e:
+        print(f"数据库连接错误: {e}")
+        if connection:
+            connection.rollback()
+        raise
+    finally:
+        if connection:
+            connection.close()
+
+def init_database():
+    """初始化数据库和表结构"""
+    try:
+        # 首先连接到MySQL服务器（不指定数据库）
+        temp_config = MYSQL_CONFIG.copy()
+        temp_config.pop('database')
+        
+        with pymysql.connect(**temp_config) as connection:
+            with connection.cursor() as cursor:
+                # 创建数据库（如果不存在）
+                cursor.execute(f"CREATE DATABASE IF NOT EXISTS {MYSQL_CONFIG['database']} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+                print(f"数据库 {MYSQL_CONFIG['database']} 创建成功或已存在")
+        
+        # 连接到指定数据库并创建表
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                # 创建分类设置表
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS category_settings (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        user_id VARCHAR(50) DEFAULT 'default' COMMENT '用户ID，暂时使用default',
+                        preset_categories JSON NOT NULL COMMENT '预设分类设置',
+                        custom_categories JSON NOT NULL COMMENT '自定义分类设置',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        UNIQUE KEY unique_user (user_id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """)
+                
+                # 检查是否已有默认设置，如果没有则插入
+                cursor.execute("SELECT COUNT(*) FROM category_settings WHERE user_id = 'default'")
+                count = cursor.fetchone()[0]
+                
+                if count == 0:
+                    # 插入默认分类设置
+                    default_preset = [
+                        {'value': 'Text Generation', 'label': '文本生成', 'enabled': True},
+                        {'value': 'Image Generation', 'label': '图像生成', 'enabled': True},
+                        {'value': 'Video Generation', 'label': '视频生成', 'enabled': False},
+                        {'value': 'Audio Generation', 'label': '音频生成', 'enabled': False},
+                        {'value': 'Productivity', 'label': '生产力工具', 'enabled': True},
+                        {'value': 'Development', 'label': '开发工具', 'enabled': True},
+                        {'value': 'Entertainment', 'label': '娱乐应用', 'enabled': False},
+                        {'value': 'Education', 'label': '教育学习', 'enabled': False},
+                        {'value': 'Business', 'label': '商业应用', 'enabled': False},
+                        {'value': 'Healthcare', 'label': '医疗健康', 'enabled': False},
+                        {'value': 'Design', 'label': '设计工具', 'enabled': False},
+                        {'value': 'Other', 'label': '其他', 'enabled': False}
+                    ]
+                    
+                    cursor.execute("""
+                        INSERT INTO category_settings (user_id, preset_categories, custom_categories)
+                        VALUES ('default', %s, %s)
+                    """, (json.dumps(default_preset), json.dumps([])))
+                    
+                    print("默认分类设置插入成功")
+                
+                connection.commit()
+                print("数据库表初始化完成")
+                
+    except Exception as e:
+        print(f"数据库初始化失败: {e}")
+        raise
+
+def load_category_settings(user_id='default'):
+    """从数据库加载分类设置"""
+    try:
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT preset_categories, custom_categories 
+                    FROM category_settings 
+                    WHERE user_id = %s
+                """, (user_id,))
+                
+                result = cursor.fetchone()
+                if result:
+                    preset_categories = json.loads(result[0]) if result[0] else []
+                    custom_categories = json.loads(result[1]) if result[1] else []
+                    return {
+                        'preset': preset_categories,
+                        'custom': custom_categories
+                    }
+                else:
+                    # 如果没有找到，返回默认设置
+                    return get_default_category_settings()
+    except Exception as e:
+        print(f"加载分类设置失败: {e}")
+        return get_default_category_settings()
+
+def save_category_settings(settings, user_id='default'):
+    """保存分类设置到数据库"""
+    try:
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO category_settings (user_id, preset_categories, custom_categories)
+                    VALUES (%s, %s, %s)
+                    ON DUPLICATE KEY UPDATE
+                    preset_categories = VALUES(preset_categories),
+                    custom_categories = VALUES(custom_categories),
+                    updated_at = CURRENT_TIMESTAMP
+                """, (
+                    user_id,
+                    json.dumps(settings.get('preset', [])),
+                    json.dumps(settings.get('custom', []))
+                ))
+                connection.commit()
+                return True
+    except Exception as e:
+        print(f"保存分类设置失败: {e}")
+        return False
+
+def get_default_category_settings():
+    """获取默认分类设置"""
+    return {
+        'preset': [
+            {'value': 'Text Generation', 'label': '文本生成', 'enabled': True},
+            {'value': 'Image Generation', 'label': '图像生成', 'enabled': True},
+            {'value': 'Video Generation', 'label': '视频生成', 'enabled': False},
+            {'value': 'Audio Generation', 'label': '音频生成', 'enabled': False},
+            {'value': 'Productivity', 'label': '生产力工具', 'enabled': True},
+            {'value': 'Development', 'label': '开发工具', 'enabled': True},
+            {'value': 'Entertainment', 'label': '娱乐应用', 'enabled': False},
+            {'value': 'Education', 'label': '教育学习', 'enabled': False},
+            {'value': 'Business', 'label': '商业应用', 'enabled': False},
+            {'value': 'Healthcare', 'label': '医疗健康', 'enabled': False},
+            {'value': 'Design', 'label': '设计工具', 'enabled': False},
+            {'value': 'Other', 'label': '其他', 'enabled': False}
+        ],
+        'custom': []
+    }
 
 @app.route('/')
 def index():
@@ -179,6 +341,48 @@ def task_status(task_id):
 def get_prompt():
     """获取当前的搜索Prompt"""
     return jsonify({'prompt': DEFAULT_PROMPT})
+
+@app.route('/api/categories', methods=['GET'])
+def get_categories():
+    """获取分类设置"""
+    try:
+        settings = load_category_settings()
+        return jsonify(settings)
+    except Exception as e:
+        return jsonify({'error': f'获取分类设置失败: {str(e)}'}), 500
+
+@app.route('/api/categories', methods=['POST'])
+def save_categories():
+    """保存分类设置"""
+    try:
+        settings = request.json
+        if not settings:
+            return jsonify({'error': '无效的设置数据'}), 400
+        
+        # 验证数据结构
+        if 'preset' not in settings or 'custom' not in settings:
+            return jsonify({'error': '设置数据结构不正确'}), 400
+        
+        success = save_category_settings(settings)
+        if success:
+            return jsonify({'success': True, 'message': '分类设置保存成功'})
+        else:
+            return jsonify({'error': '保存失败'}), 500
+    except Exception as e:
+        return jsonify({'error': f'保存分类设置时出错: {str(e)}'}), 500
+
+@app.route('/api/categories/reset', methods=['POST'])
+def reset_categories():
+    """重置分类设置为默认值"""
+    try:
+        default_settings = get_default_category_settings()
+        success = save_category_settings(default_settings)
+        if success:
+            return jsonify({'success': True, 'message': '分类设置已重置为默认值', 'settings': default_settings})
+        else:
+            return jsonify({'error': '重置失败'}), 500
+    except Exception as e:
+        return jsonify({'error': f'重置分类设置时出错: {str(e)}'}), 500
 
 
 
@@ -518,5 +722,14 @@ def parse_text_result(text):
         return {'products': [], 'summary': text, 'note': '', 'total_found': 0}
 
 if __name__ == '__main__':
+    # 初始化数据库
+    print("正在初始化数据库...")
+    try:
+        init_database()
+        print("数据库初始化成功！")
+    except Exception as e:
+        print(f"数据库初始化失败: {e}")
+        print("应用将继续运行，但分类管理功能可能无法正常工作")
+    
     # 在生产环境中监听所有网络接口
     app.run(debug=False, host='0.0.0.0', port=3000) 

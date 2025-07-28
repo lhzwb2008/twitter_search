@@ -86,17 +86,66 @@
                         </div>
                         
                         <!-- 目标分类 -->
-                        <div class="form-group">
-                            <label>目标分类</label>
-                            <div class="checkbox-group">
+                        <div class="form-group full-width">
+                            <div class="category-header">
+                                <label>目标分类</label>
+                                <button type="button" id="manage-categories" class="manage-btn">管理分类</button>
+                            </div>
+                            <div id="categories-container" class="checkbox-group-extended">
+                                <!-- 默认分类 -->
                                 <label class="checkbox-label">
-                                    <input type="checkbox" name="categories" value="Entertainment/Social" checked>
-                                    娱乐/社交
+                                    <input type="checkbox" name="categories" value="Text Generation" checked>
+                                    文本生成
                                 </label>
                                 <label class="checkbox-label">
-                                    <input type="checkbox" name="categories" value="Productivity/Development" checked>
-                                    生产力/开发
+                                    <input type="checkbox" name="categories" value="Image Generation" checked>
+                                    图像生成
                                 </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="categories" value="Video Generation">
+                                    视频生成
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="categories" value="Audio Generation">
+                                    音频生成
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="categories" value="Productivity" checked>
+                                    生产力工具
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="categories" value="Development" checked>
+                                    开发工具
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="categories" value="Entertainment">
+                                    娱乐应用
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="categories" value="Education">
+                                    教育学习
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="categories" value="Business">
+                                    商业应用
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="categories" value="Healthcare">
+                                    医疗健康
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="categories" value="Design">
+                                    设计工具
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="categories" value="Other">
+                                    其他
+                                </label>
+                            </div>
+                            <div class="category-actions">
+                                <button type="button" id="select-all-categories" class="category-action-btn">全选</button>
+                                <button type="button" id="deselect-all-categories" class="category-action-btn">全不选</button>
+                                <button type="button" id="reset-categories" class="category-action-btn">重置默认</button>
                             </div>
                         </div>
                     </div>
@@ -231,6 +280,44 @@
             </div>
             <div class="modal-body">
                 <pre id="generated-prompt"></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- 分类管理模态框 -->
+    <div id="category-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🏷️ 分类管理</h3>
+                <button class="modal-close category-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="category-management">
+                    <div class="category-section">
+                        <h4>预设分类</h4>
+                        <p class="section-desc">这些是系统预设的AI产品分类，可以根据需要启用或禁用</p>
+                        <div id="preset-categories" class="category-list">
+                            <!-- 预设分类将由JavaScript动态生成 -->
+                        </div>
+                    </div>
+                    
+                    <div class="category-section">
+                        <h4>自定义分类</h4>
+                        <p class="section-desc">添加您自己的产品分类，搜索结果会自动归类到这些分类中</p>
+                        <div class="add-category-form">
+                            <input type="text" id="new-category-input" placeholder="输入新分类名称..." maxlength="20">
+                            <button type="button" id="add-category-btn" class="primary">添加分类</button>
+                        </div>
+                        <div id="custom-categories" class="category-list">
+                            <!-- 自定义分类将由JavaScript动态生成 -->
+                        </div>
+                    </div>
+                    
+                    <div class="category-actions-modal">
+                        <button type="button" id="save-categories" class="primary">保存设置</button>
+                        <button type="button" id="reset-to-default" class="secondary">恢复默认</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

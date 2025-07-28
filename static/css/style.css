@@ -8,7 +8,7 @@
 :root {
     --primary-color: #2563eb;
     --secondary-color: #64748b;
-    --success-color: #10b981;
+    --success-color: #10b981;  
     --danger-color: #ef4444;
     --background: #f8fafc;
     --surface: #ffffff;
@@ -674,6 +674,171 @@ button:disabled {
     line-height: 1.5;
 }
 
+/* 分类管理模态框样式 */
+.category-management {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.category-section {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.category-section:last-of-type {
+    border-bottom: none;
+    margin-bottom: 1rem;
+}
+
+.category-section h4 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+.section-desc {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    line-height: 1.4;
+}
+
+.category-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.category-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem;
+    background-color: var(--background);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.category-item:hover {
+    border-color: var(--primary-color);
+    background-color: var(--surface);
+}
+
+.category-item.enabled {
+    border-color: var(--success-color);
+    background-color: rgba(16, 185, 129, 0.05);
+}
+
+.category-item.custom {
+    border-color: var(--primary-color);
+    background-color: rgba(37, 99, 235, 0.05);
+}
+
+.category-name {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.category-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.category-toggle {
+    width: 40px;
+    height: 20px;
+    background-color: var(--border-color);
+    border: none;
+    border-radius: 10px;
+    position: relative;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.category-toggle.enabled {
+    background-color: var(--success-color);
+}
+
+.category-toggle::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background-color: white;
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.2s;
+}
+
+.category-toggle.enabled::after {
+    transform: translateX(20px);
+}
+
+.category-remove {
+    background: none;
+    border: none;
+    color: var(--danger-color);
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.category-remove:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+    transform: none;
+    box-shadow: none;
+}
+
+.add-category-form {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.add-category-form input {
+    flex: 1;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.add-category-form button {
+    padding: 0.75rem 1.5rem;
+    white-space: nowrap;
+}
+
+.category-actions-modal {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.empty-state {
+    text-align: center;
+    color: var(--text-secondary);
+    font-style: italic;
+    padding: 2rem;
+    background-color: var(--background);
+    border-radius: 6px;
+    border: 2px dashed var(--border-color);
+}
+
 /* 页脚 */
 footer {
     text-align: center;
@@ -743,5 +908,30 @@ footer a:hover {
     .modal-content {
         width: 95%;
         max-height: 90vh;
+    }
+    
+    .checkbox-group-extended {
+        grid-template-columns: 1fr;
+    }
+    
+    .category-actions {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    
+    .category-action-btn {
+        width: 100%;
+    }
+    
+    .category-list {
+        grid-template-columns: 1fr;
+    }
+    
+    .add-category-form {
+        flex-direction: column;
+    }
+    
+    .category-actions-modal {
+        flex-direction: column;
     }
 } 

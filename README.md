@@ -2,29 +2,50 @@
 
 这是一个基于Browser-use API的Web应用，用于从Twitter/Nitter搜索和发现最新的AI产品和工具。
 
-## 功能特点
+## 部署和启动指南
 
-- 🔍 **智能搜索**：使用自定义Prompt在Nitter上搜索AI产品
-- 📊 **结构化展示**：将搜索结果以卡片形式展示，包含产品名称、描述、分类和社交指标
-- ✏️ **Prompt编辑**：支持自定义和编辑搜索Prompt
-- 🔗 **实时预览**：提供任务执行过程的实时预览链接
-- 📱 **响应式设计**：适配各种设备屏幕
+### 1. 环境准备
 
-## 技术栈
+**创建虚拟环境**
+```bash
+python3 -m venv venv
+```
 
-- **后端**：Python Flask
-- **前端**：原生HTML/CSS/JavaScript
-- **API**：Browser-use Cloud API
+**激活虚拟环境**
+```bash
+# macOS/Linux
+source venv/bin/activate
 
-## 快速开始
+# Windows
+venv\Scripts\activate
+```
 
-### 1. 安装依赖
+### 2. 安装依赖
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. 配置API密钥
+### 3. 数据库配置
+
+应用使用MySQL数据库存储分类设置。数据库配置位于 `app.py` 中：
+
+```python
+MYSQL_CONFIG = {
+    'host': 'sh-cdb-kgv8etuq.sql.tencentcdb.com',
+    'port': 23333,
+    'user': 'root',
+    'password': 'Hello2025',
+    'database': 'twitter_search',
+    'charset': 'utf8mb4'
+}
+```
+
+**数据库初始化**
+- 应用首次启动时会自动创建数据库和表结构
+- 会自动插入默认的分类设置数据
+
+### 4. API密钥配置
 
 在 `app.py` 中设置您的Browser-use API密钥，或通过环境变量设置：
 
@@ -32,23 +53,27 @@ pip install -r requirements.txt
 export BROWSER_USE_API_KEY="your_api_key_here"
 ```
 
-### 3. 运行应用
+### 5. 启动应用
 
-**方式一：后台运行（推荐）**
+**方式一：前台运行（开发调试）**
 ```bash
-./run.sh
+# 确保虚拟环境已激活
+source venv/bin/activate
+python3 app.py
 ```
 
-**方式二：前台运行**
+**方式二：后台运行（生产环境）**
 ```bash
-python app.py
+# 确保虚拟环境已激活
+source venv/bin/activate
+./run.sh
 ```
 
 应用将在 http://localhost:3000 启动
 
-### 4. 管理应用
+### 6. 应用管理
 
-**查看状态**
+**查看应用状态**
 ```bash
 ./status.sh
 ```
@@ -58,49 +83,50 @@ python app.py
 ./stop.sh
 ```
 
-**查看日志**
+**查看运行日志**
 ```bash
 tail -f nohup.out
 ```
 
-## 使用说明
+### 7. 虚拟环境管理
 
-1. **编辑搜索Prompt**：在文本框中编辑搜索提示词，定义搜索条件
-2. **开始搜索**：点击"开始搜索"按钮执行任务
-3. **查看进度**：通过实时预览链接观看AI执行搜索的过程
-4. **查看结果**：搜索完成后，结果将以卡片形式展示
-
-## 项目结构
-
-```
-twitter_search/
-├── app.py              # Flask应用主文件
-├── browser_use_demo.py # 原始的命令行演示脚本
-├── templates/          # HTML模板
-│   └── index.html
-├── static/             # 静态资源
-│   ├── css/
-│   │   └── style.css
-│   └── js/
-│       └── app.js
-├── requirements.txt    # Python依赖
-├── .gitignore         # Git忽略文件
-└── README.md          # 项目说明
+**激活虚拟环境**
+```bash
+source venv/bin/activate
 ```
 
-## API端点
+**退出虚拟环境**
+```bash
+deactivate
+```
 
-- `GET /` - 主页
-- `GET /api/prompt` - 获取默认搜索Prompt
-- `POST /api/search` - 创建搜索任务
-- `GET /api/task/<task_id>/status` - 获取任务状态
+**重新安装依赖（如果需要）**
+```bash
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
-## 注意事项
+### 8. 故障排除
 
-- Browser-use API需要有效的API密钥
-- 搜索任务可能需要几分钟才能完成
-- 建议定期检查API使用额度
+**数据库连接问题**
+- 检查MySQL服务器是否可访问
+- 验证数据库配置信息是否正确
+- 确保网络连接正常
 
-## 许可证
+**依赖安装问题**
+- 确保使用了虚拟环境
+- 如果遇到权限问题，使用虚拟环境而不是系统级安装
 
-MIT License 
+**应用启动问题**
+- 检查端口3000是否被占用
+- 查看控制台输出的错误信息
+- 确保所有依赖都已正确安装
+
+### 9. 重要文件说明
+
+- `app.py` - Flask应用主文件，包含数据库配置
+- `requirements.txt` - Python依赖列表
+- `venv/` - 虚拟环境目录（不要提交到git）
+- `run.sh` - 后台启动脚本
+- `stop.sh` - 停止应用脚本
+- `status.sh` - 查看状态脚本 
