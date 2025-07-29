@@ -1,33 +1,27 @@
 // AI产品搜索应用的前端逻辑
 document.addEventListener('DOMContentLoaded', function() {
-    // DOM元素
+    // DOM elements
     const searchForm = document.getElementById('search-form');
     const previewPromptBtn = document.getElementById('preview-prompt');
+    const refreshPreviewBtn = document.getElementById('refresh-preview-btn');
     const searchBtn = document.getElementById('search-btn');
     const taskStatus = document.getElementById('task-status');
-    const statusText = document.querySelector('.status-text');
     const taskControls = document.getElementById('task-controls');
-
-    const refreshPreviewBtn = document.getElementById('refresh-preview-btn');
     const taskIdDisplay = document.getElementById('task-id-display');
+    const statusText = document.querySelector('.status-text');
     const livePreview = document.getElementById('live-preview');
-    const previewIframe = document.getElementById('preview-iframe');
-    const previewLink = document.querySelector('.preview-link');
-    const progressFill = document.querySelector('.progress-fill');
-    const resultsSection = document.getElementById('results');
+    const previewLink = document.getElementById('preview-link');
     const productsGrid = document.getElementById('products-grid');
-    const productCount = document.querySelector('.product-count');
-    const searchNote = document.querySelector('.search-note');
     const loading = document.getElementById('loading');
     
     // 模态框元素
     const promptModal = document.getElementById('prompt-modal');
-    const modalClose = document.querySelector('.modal-close');
+    const modalClose = promptModal.querySelector('.modal-close');
     const generatedPrompt = document.getElementById('generated-prompt');
     
     // 分类管理元素
     const categoryModal = document.getElementById('category-modal');
-    const categoryModalClose = document.querySelector('.category-modal-close');
+    const categoryModalClose = categoryModal.querySelector('.modal-close');
     const manageCategoriesBtn = document.getElementById('manage-categories');
     const categoriesContainer = document.getElementById('categories-container');
     const selectAllBtn = document.getElementById('select-all-categories');
@@ -251,30 +245,46 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             if (response.ok) {
                 const settings = await response.json();
                 categorySettings = settings;
-                console.log('从MySQL数据库加载分类设置成功');
+                console.log('Category settings loaded from MySQL database successfully');
             } else {
                 const error = await response.json();
-                console.error('加载分类设置失败:', error.error);
+                console.error('Failed to load category settings:', error.error);
                 // 使用默认设置
                 categorySettings = {
                     preset: [
-                        { value: 'Text Generation', label: '文本生成', enabled: true },
-                        { value: 'Image Generation', label: '图像生成', enabled: true },
-                        { value: 'Productivity', label: '生产力工具', enabled: true },
-                        { value: 'Development', label: '开发工具', enabled: true }
+                        { value: 'Text Generation', label: 'Text Generation', enabled: true },
+                        { value: 'Image Generation', label: 'Image Generation', enabled: true },
+                        { value: 'Video Generation', label: 'Video Generation', enabled: false },
+                        { value: 'Audio Generation', label: 'Audio Generation', enabled: false },
+                        { value: 'Productivity', label: 'Productivity', enabled: true },
+                        { value: 'Development', label: 'Development', enabled: true },
+                        { value: 'Entertainment', label: 'Entertainment', enabled: false },
+                        { value: 'Education', label: 'Education', enabled: false },
+                        { value: 'Business', label: 'Business', enabled: false },
+                        { value: 'Healthcare', label: 'Healthcare', enabled: false },
+                        { value: 'Design', label: 'Design', enabled: false },
+                        { value: 'Other', label: 'Other', enabled: false }
                     ],
                     custom: []
                 };
             }
         } catch (error) {
-            console.error('加载分类设置时出错:', error);
+            console.error('Error loading category settings:', error);
             // 使用默认设置
             categorySettings = {
                 preset: [
-                    { value: 'Text Generation', label: '文本生成', enabled: true },
-                    { value: 'Image Generation', label: '图像生成', enabled: true },
-                    { value: 'Productivity', label: '生产力工具', enabled: true },
-                    { value: 'Development', label: '开发工具', enabled: true }
+                    { value: 'Text Generation', label: 'Text Generation', enabled: true },
+                    { value: 'Image Generation', label: 'Image Generation', enabled: true },
+                    { value: 'Video Generation', label: 'Video Generation', enabled: false },
+                    { value: 'Audio Generation', label: 'Audio Generation', enabled: false },
+                    { value: 'Productivity', label: 'Productivity', enabled: true },
+                    { value: 'Development', label: 'Development', enabled: true },
+                    { value: 'Entertainment', label: 'Entertainment', enabled: false },
+                    { value: 'Education', label: 'Education', enabled: false },
+                    { value: 'Business', label: 'Business', enabled: false },
+                    { value: 'Healthcare', label: 'Healthcare', enabled: false },
+                    { value: 'Design', label: 'Design', enabled: false },
+                    { value: 'Other', label: 'Other', enabled: false }
                 ],
                 custom: []
             };
@@ -294,7 +304,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             
             if (response.ok) {
                 const result = await response.json();
-                console.log('分类设置保存到MySQL成功:', result.message);
+                console.log('Category settings saved to MySQL successfully:', result.message);
                 return true;
             } else {
                 const error = await response.json();
@@ -330,7 +340,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             label.className = 'checkbox-label';
             label.innerHTML = `
                 <input type="checkbox" name="categories" value="${category.value}" checked>
-                ${category.label} <span style="color: var(--primary-color); font-size: 0.8em;">(自定义)</span>
+                ${category.label} <span style="color: var(--primary-color); font-size: 0.8em;">(Custom)</span>
             `;
             categoriesContainer.appendChild(label);
         });
@@ -370,7 +380,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         // 渲染自定义分类
         customContainer.innerHTML = '';
         if (categorySettings.custom.length === 0) {
-            customContainer.innerHTML = '<div class="empty-state">暂无自定义分类</div>';
+            customContainer.innerHTML = '<div class="empty-state">No custom categories yet</div>';
         } else {
             categorySettings.custom.forEach((category, index) => {
                 const item = document.createElement('div');
@@ -413,7 +423,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         const name = input.value.trim();
         
         if (!name) {
-            alert('请输入分类名称');
+            alert('Please enter a category name');
             return;
         }
         
@@ -422,7 +432,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             .some(cat => cat.value.toLowerCase() === name.toLowerCase() || cat.label === name);
         
         if (exists) {
-            alert('该分类已存在');
+            alert('This category already exists');
             return;
         }
         
@@ -439,7 +449,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
     
     // 删除自定义分类
     function removeCustomCategory(index) {
-        if (confirm('确定要删除这个自定义分类吗？')) {
+        if (confirm('Are you sure you want to delete this custom category?')) {
             categorySettings.custom.splice(index, 1);
             renderCategoryManagement();
         }
@@ -451,15 +461,15 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         if (success) {
             renderCategoryCheckboxes();
             closeCategoryModal();
-            alert('分类设置已保存到MySQL数据库！');
+            alert('Category settings saved successfully!');
         } else {
-            alert('保存失败，请重试');
+            alert('Save failed, please try again');
         }
     }
     
     // 重置为默认设置
     async function resetToDefault() {
-        if (confirm('确定要重置为默认分类设置吗？这将删除所有自定义分类。')) {
+        if (confirm('Are you sure you want to reset to default category settings? This will delete all custom categories.')) {
             try {
                 const response = await fetch('/api/categories/reset', {
                     method: 'POST',
@@ -472,14 +482,14 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
                     const result = await response.json();
                     categorySettings = result.settings;
                     renderCategoryManagement();
-                    alert('已重置为默认设置！');
+                    alert('Reset to default settings successfully!');
                 } else {
                     const error = await response.json();
-                    alert('重置失败: ' + error.error);
+                    alert('Reset failed: ' + error.error);
                 }
             } catch (error) {
-                console.error('重置分类设置时出错:', error);
-                alert('重置失败，请重试');
+                console.error('Error resetting category settings:', error);
+                alert('Reset failed, please try again');
             }
         }
     }
@@ -532,7 +542,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         
         // 显示加载状态
         searchBtn.disabled = true;
-        searchBtn.textContent = '发现中...';
+        searchBtn.textContent = 'Discovering...';
         taskStatus.classList.remove('hidden');
         loading.classList.remove('hidden');
 
@@ -566,7 +576,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             
             // 显示任务控制面板
             taskControls.classList.remove('hidden');
-            taskIdDisplay.textContent = `任务ID: ${currentTaskId}`;
+            taskIdDisplay.textContent = `Task ID: ${currentTaskId}`;
             
             // 显示实时预览
             if (data.live_url) {
@@ -577,45 +587,43 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             startStatusPolling();
 
         } catch (error) {
-            console.error('搜索失败:', error);
-            alert('搜索失败: ' + error.message);
+            console.error('Search failed:', error);
+            alert('Search failed: ' + error.message);
             resetUI();
         }
     }
 
     // 显示实时预览
     function showLivePreview(liveUrl) {
+        if (!liveUrl) return;
+        
         console.log('[DEBUG] showLivePreview called with:', liveUrl);
         console.log('[DEBUG] livePreview element:', livePreview);
-        console.log('[DEBUG] previewIframe element:', previewIframe);
         console.log('[DEBUG] previewLink element:', previewLink);
         
-        if (!livePreview || !previewIframe || !previewLink) {
-            console.error('[ERROR] 实时预览元素获取失败!');
+        if (!livePreview || !previewLink) {
+            console.error('[ERROR] Live preview elements not found!');
             return;
         }
         
-        livePreview.classList.remove('hidden');
-        previewIframe.src = liveUrl;
+        // 更新链接
         previewLink.href = liveUrl;
-        console.log('[DEBUG] iframe src set to:', previewIframe.src);
-        console.log('[DEBUG] live preview should now be visible');
-        console.log('[DEBUG] livePreview classes:', livePreview.className);
+        previewLink.textContent = 'Open in New Window';
+        
+        // 显示预览容器
+        livePreview.classList.remove('hidden');
+        console.log('[DEBUG] Live preview link updated and shown');
     }
 
 
 
     // 刷新预览
     function refreshPreview() {
-        if (previewIframe.src) {
-            console.log('[DEBUG] 刷新预览iframe');
-            const currentSrc = previewIframe.src;
-            previewIframe.src = '';
-            setTimeout(() => {
-                previewIframe.src = currentSrc;
-            }, 100);
+        if (previewLink.href && previewLink.href !== '#') {
+            console.log('[DEBUG] Opening preview in new window');
+            window.open(previewLink.href, '_blank');
         } else {
-            alert('没有可刷新的预览');
+            alert('No preview to refresh');
         }
     }
 
@@ -632,10 +640,10 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             
             if (pollCount > maxPolls) {
                 clearInterval(statusCheckInterval);
-                statusText.textContent = '任务执行时间过长，但可能仍在后台运行。请手动刷新页面检查结果。';
+                statusText.textContent = 'Task execution time exceeded, but may still be running in the background. Please manually refresh the page to check results.';
                 // 不重置UI，保持iframe显示
                 searchBtn.disabled = false;
-                searchBtn.textContent = '开始搜索';
+                searchBtn.textContent = 'Discover AI Products';
                 return;
             }
 
@@ -649,21 +657,44 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             const response = await fetch(`/api/task/${currentTaskId}/status`);
             const data = await response.json();
             
-            console.log('[DEBUG] 任务状态响应:', data);
-            console.log('[DEBUG] 当前iframe src:', previewIframe.src);
-            console.log('[DEBUG] 是否有live_url:', !!data.live_url);
+            console.log('[DEBUG] Task status response:', data);
+            console.log('[DEBUG] Has live_url:', !!data.live_url);
 
             updateStatusUI(data.status, data);
 
+            // 显示任务步骤信息
+            if (data.steps && data.steps.length > 0) {
+                displayTaskSteps(data.steps);
+            }
+            
+            // 显示任务输出信息
+            if (data.output) {
+                displayTaskOutput(data.output);
+            }
+            
+            // 显示browser-use原始输出信息
+            if (data.raw_output) {
+                displayTaskOutput(data.raw_output);
+            }
+            
+            // 显示输出文件列表
+            if (data.output_files && data.output_files.length > 0) {
+                displayOutputFiles(data.output_files);
+            }
+            
+            // 显示输出文件内容
+    if (data.output_files_content) {
+        displayOutputFilesContent(data.output_files_content);
+    }
+
             // 如果返回了live_url，显示它
             if (data.live_url) {
-                console.log('[DEBUG] 显示实时预览:', data.live_url);
-                console.log('[DEBUG] 当前iframe src:', previewIframe.src);
+                console.log('[DEBUG] Showing live preview:', data.live_url);
                 
-                // 无论如何都显示live_url，因为它可能是最新的
+                // 显示live_url
                 showLivePreview(data.live_url);
             } else {
-                console.log('[DEBUG] 没有live_url返回');
+                console.log('[DEBUG] No live_url returned');
             }
 
             // 显示中间进度（如果有）
@@ -674,7 +705,34 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             // 任务完成、失败或部分成功
             if (['finished', 'failed', 'stopped', 'partial_success'].includes(data.status)) {
                 clearInterval(statusCheckInterval);
-                loading.classList.add('hidden');
+                statusCheckInterval = null;
+                loading.classList.add('hidden');  // 隐藏加载动画
+                
+                // 清理运行时的UI元素
+                const runningHint = document.querySelector('.running-hint');
+                if (runningHint) {
+                    runningHint.remove();
+                }
+                
+                const progressSection = document.getElementById('intermediate-progress');
+                if (progressSection) {
+                    progressSection.remove();
+                }
+                
+                // 重置搜索按钮状态
+                searchBtn.disabled = false;
+                searchBtn.textContent = 'Discover AI Products';
+                
+                // 隐藏任务状态区域的加载提示
+                const statusText = document.querySelector('.status-text');
+                if (statusText && data.status === 'finished') {
+                    statusText.textContent = '✅ Search completed!';
+                }
+
+                // 显示 browser-use 完整结果
+                if (['finished', 'stopped', 'partial_success'].includes(data.status)) {
+                    displayBrowserUseResults(data);
+                }
 
                 if ((data.status === 'finished' || data.status === 'partial_success') && data.result) {
                     displayResults(data.result, data.status === 'partial_success', data.recovered_from_logs);
@@ -684,17 +742,11 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
                         showPartialSuccessMessage(data.message || '任务中断，但成功恢复了部分数据');
                     }
                 } else if (data.status === 'failed') {
-                    // 即使失败，也检查是否有恢复的数据
-                    if (data.result && data.result.products && data.result.products.length > 0) {
-                        displayResults(data.result, true, data.recovered_from_logs);
-                        showPartialSuccessMessage('任务失败，但成功从执行日志中恢复了部分数据');
-                    } else {
-                        statusText.textContent = '任务失败';
-                    }
+                    statusText.textContent = 'Task failed';
+                } else {
+                    // 对于stopped状态，也要重置UI
+                    statusText.textContent = 'Task stopped';
                 }
-
-                searchBtn.disabled = false;
-                searchBtn.textContent = '开始搜索';
             }
 
         } catch (error) {
@@ -730,7 +782,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         const progressSummary = progressSection.querySelector('.progress-summary');
         const progressProducts = progressSection.querySelector('.progress-products');
 
-        progressSummary.textContent = progressData.summary || `已发现 ${progressData.products.length} 个产品...`;
+        progressSummary.textContent = progressData.summary || `Found ${progressData.products.length} products...`;
 
         // 显示已发现的产品
         progressProducts.innerHTML = '';
@@ -783,12 +835,12 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
     // 更新状态UI
     function updateStatusUI(status, data = {}) {
         const statusMap = {
-            'created': '任务已创建，正在初始化浏览器...',
-            'running': '🔍 AI正在搜索中... 预计需要10分钟左右',
-            'finished': '✅ 搜索完成！',
-            'failed': '❌ 任务失败',
-            'stopped': '⏹️ 任务已停止',
-            'partial_success': '⚠️ 任务中断，但成功恢复了数据'
+            'created': 'Task created, initializing browser...',
+            'running': '🔍 AI is searching... Estimated time: 10 minutes',
+            'finished': '✅ Search completed!',
+            'failed': '❌ Task failed',
+            'stopped': '⏹️ Task stopped',
+            'partial_success': '⚠️ Task interrupted, but data successfully recovered'
         };
 
         statusText.textContent = statusMap[status] || status;
@@ -806,7 +858,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
                 statusText.parentNode.insertBefore(runningHint, statusText.nextSibling);
             }
             
-            let hintText = '💡 提示：AI正在执行多个搜索查询并分析内容，您可以在下方查看实时执行过程。';
+            let hintText = '💡 Hint: AI is performing multiple search queries and analyzing content. You can view the real-time execution process below.';
             
             // 如果有中间进度，更新提示文本
             if (data.intermediate_progress && data.intermediate_progress.products) {
@@ -846,11 +898,11 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             
             summaryText.textContent = summaryContent;
             if (data.total_found !== undefined) {
-                totalCount.textContent = `共找到 ${data.total_found} 个AI产品`;
+                totalCount.textContent = `Found ${data.total_found} AI products`;
             } else if (data.products && data.products.length > 0) {
-                totalCount.textContent = `共找到 ${data.products.length} 个AI产品`;
+                totalCount.textContent = `Found ${data.products.length} AI products`;
             } else {
-                totalCount.textContent = `未找到符合条件的AI产品`;
+                totalCount.textContent = `No AI products found matching criteria`;
             }
             
             // 如果是恢复的数据，添加特殊样式
@@ -926,7 +978,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
 
         // 如果是恢复的数据，添加特殊样式
         if (isRecovered) {
-            card.querySelector('.product-source').innerHTML = '<span class="source-tag recovered">从日志恢复</span>';
+            card.querySelector('.product-source').innerHTML = '<span class="source-tag recovered">Recovered from logs</span>';
         }
 
         return card;
@@ -934,13 +986,22 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
 
     // 重置UI状态
     function resetUI() {
+        // 清理任务信息
+        clearTaskInfo();
+        
         searchBtn.disabled = false;
-        searchBtn.textContent = '开始搜索';
+        searchBtn.textContent = 'Discover AI Products';
         taskStatus.classList.add('hidden');
         taskControls.classList.add('hidden');
         loading.classList.add('hidden');
         livePreview.classList.add('hidden');
-        previewIframe.src = '';
+        
+        // 重置预览链接
+        if (previewLink) {
+            previewLink.href = '#';
+            previewLink.textContent = 'Waiting for preview link...';
+        }
+        
         taskIdDisplay.textContent = '';
         currentTaskId = null;
         
@@ -957,4 +1018,378 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             statusCheckInterval = null;
         }
     }
-}); 
+
+    // 显示任务步骤信息
+    function displayTaskSteps(steps) {
+        console.log('[DEBUG] Displaying task steps:', steps);
+        
+        // 检查步骤数据是否有效
+        if (!steps || steps.length === 0) {
+            console.log('[DEBUG] Step data is empty, do not display steps container');
+            return;
+        }
+        
+        // 检查步骤数据是否包含有效信息
+        const hasValidSteps = steps.some(step => {
+            return step && (
+                step.action || step.next_goal || step.thinking || 
+                step.evaluation_previous_goal || step.url
+            );
+        });
+        
+        if (!hasValidSteps) {
+            console.log('[DEBUG] Step data has no valid content, do not display steps container');
+            return;
+        }
+        
+        // 创建或获取步骤容器
+        let stepsContainer = document.getElementById('task-steps');
+        if (!stepsContainer) {
+            stepsContainer = document.createElement('div');
+            stepsContainer.id = 'task-steps';
+            stepsContainer.className = 'task-steps-container';
+            
+            // 插入到live preview之后
+            const livePreview = document.getElementById('live-preview');
+            if (livePreview && livePreview.parentNode) {
+                livePreview.parentNode.insertBefore(stepsContainer, livePreview.nextSibling);
+            } else {
+                // 如果没有live preview，插入到任务状态区域
+                const taskStatus = document.getElementById('task-status');
+                if (taskStatus) {
+                    taskStatus.appendChild(stepsContainer);
+                }
+            }
+        }
+        
+        // 生成步骤HTML，使用实际的数据字段
+        const stepsHtml = steps.map((step, index) => {
+            // 提取步骤信息，适配browser-use的实际数据结构
+            const stepNumber = step.step || (index + 1);
+            const action = step.action || step.next_goal || 'Step Action';
+            const description = step.description || step.thinking || step.evaluation_previous_goal || 'No description';
+            const time = step.time || step.timestamp || '';
+            const url = step.url || '';
+            
+            // 如果所有关键信息都为空，跳过这个步骤
+            if (!action || action === 'Unknown Action') {
+                if (!description || description === 'No description') {
+                    return '';
+                }
+            }
+            
+            return `
+                <div class="step-item">
+                    <div class="step-number">${stepNumber}</div>
+                    <div class="step-content">
+                        <div class="step-action">${action}</div>
+                        <div class="step-description">${description}</div>
+                        ${time ? `<div class="step-time">${time}</div>` : ''}
+                        ${url ? `<div class="step-url">URL: ${url}</div>` : ''}
+                    </div>
+                </div>
+            `;
+        }).filter(html => html.trim()).join('');
+        
+        // 如果没有有效的步骤HTML，不显示容器
+        if (!stepsHtml.trim()) {
+            console.log('[DEBUG] Generated step HTML is empty, do not display steps container');
+            return;
+        }
+        
+        stepsContainer.innerHTML = `
+            <div class="steps-header">
+                <h3>Task Execution Steps</h3>
+                <span class="steps-count">${steps.length} steps</span>
+            </div>
+            <div class="steps-list">
+                ${stepsHtml}
+            </div>
+        `;
+        
+        stepsContainer.style.display = 'block';
+    }
+    
+    // 显示任务输出信息
+    function displayTaskOutput(output) {
+        console.log('[DEBUG] Displaying task output:', output);
+        
+        // 检查输出内容是否有效
+        if (!output || !output.trim()) {
+            console.log('[DEBUG] Output content is empty, do not display output container');
+            return;
+        }
+        
+        // 创建或获取输出容器
+        let outputContainer = document.getElementById('task-output');
+        if (!outputContainer) {
+            outputContainer = document.createElement('div');
+            outputContainer.id = 'task-output';
+            outputContainer.className = 'task-output-container';
+            
+            // 插入到步骤信息之后
+            const stepsContainer = document.getElementById('task-steps');
+            if (stepsContainer && stepsContainer.parentNode) {
+                stepsContainer.parentNode.insertBefore(outputContainer, stepsContainer.nextSibling);
+            } else {
+                // 如果没有步骤容器，插入到任务状态区域
+                const taskStatus = document.getElementById('task-status');
+                if (taskStatus) {
+                    taskStatus.appendChild(outputContainer);
+                }
+            }
+        }
+        
+        outputContainer.innerHTML = `
+            <div class="output-header">
+                <h3>Task Output</h3>
+            </div>
+            <div class="output-content">
+                <pre>${output}</pre>
+            </div>
+        `;
+        
+        outputContainer.style.display = 'block';
+    }
+    
+    // 显示输出文件列表
+    function displayOutputFiles(outputFiles) {
+        console.log('[DEBUG] Displaying output files:', outputFiles);
+        
+        // 检查文件列表是否有效
+        if (!outputFiles || outputFiles.length === 0) {
+            console.log('[DEBUG] Output file list is empty, do not display files container');
+            return;
+        }
+        
+        // 过滤掉空的文件名
+        const validFiles = outputFiles.filter(file => file && file.trim());
+        if (validFiles.length === 0) {
+            console.log('[DEBUG] No valid output files, do not display files container');
+            return;
+        }
+        
+        // 创建或获取文件容器
+        let filesContainer = document.getElementById('output-files');
+        if (!filesContainer) {
+            filesContainer = document.createElement('div');
+            filesContainer.id = 'output-files';
+            filesContainer.className = 'output-files-container';
+            
+            // 插入到输出信息之后
+            const outputContainer = document.getElementById('task-output');
+            if (outputContainer && outputContainer.parentNode) {
+                outputContainer.parentNode.insertBefore(filesContainer, outputContainer.nextSibling);
+            } else {
+                // 如果没有输出容器，插入到任务状态区域
+                const taskStatus = document.getElementById('task-status');
+                if (taskStatus) {
+                    taskStatus.appendChild(filesContainer);
+                }
+            }
+        }
+        
+        filesContainer.innerHTML = `
+            <div class="files-header">
+                <h3>Output Files</h3>
+                <span class="files-count">${validFiles.length} files</span>
+            </div>
+            <div class="files-list">
+                ${validFiles.map(file => `<div class="file-item"><span class="file-name">${file}</span></div>`).join('')}
+            </div>
+        `;
+        
+        filesContainer.style.display = 'block';
+    }
+    
+    // 显示 browser-use 完整结果
+    function displayBrowserUseResults(data) {
+        console.log('[DEBUG] Displaying browser-use results:', data);
+        
+        // 创建或获取 browser-use 结果容器
+        let browserUseContainer = document.getElementById('browser-use-results');
+        if (!browserUseContainer) {
+            browserUseContainer = document.createElement('div');
+            browserUseContainer.id = 'browser-use-results';
+            browserUseContainer.className = 'browser-use-results-container';
+            
+            // 插入到任务状态区域之后
+            const taskStatus = document.getElementById('task-status');
+            if (taskStatus && taskStatus.parentNode) {
+                taskStatus.parentNode.insertBefore(browserUseContainer, taskStatus.nextSibling);
+            }
+        }
+        
+        // 构建结果HTML
+        let resultHtml = `
+            <div class="browser-use-header">
+                <h3>🤖 Browser-Use Complete Results</h3>
+                <div class="result-meta">
+                    <span>Status: ${data.status}</span>
+                    ${data.created_at ? `<span>Created: ${new Date(data.created_at).toLocaleString()}</span>` : ''}
+                    ${data.finished_at ? `<span>Finished: ${new Date(data.finished_at).toLocaleString()}</span>` : ''}
+                </div>
+            </div>
+        `;
+        
+        // 显示原始输出
+        if (data.raw_output) {
+            resultHtml += `
+                <div class="raw-output-section">
+                    <h4>📄 Raw Output</h4>
+                    <div class="raw-output-content">
+                        <pre>${data.raw_output}</pre>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 显示解析后的产品数据
+        if (data.parsed_products && data.parsed_products.products && data.parsed_products.products.length > 0) {
+            resultHtml += `
+                <div class="raw-output-section">
+                    <h4>✅ Parsed Products (${data.parsed_products.products.length})</h4>
+                    <div class="raw-output-content">
+                        <pre>${JSON.stringify(data.parsed_products.products, null, 2)}</pre>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 显示输出文件内容
+        if (data.output_files_content && Object.keys(data.output_files_content).length > 0) {
+            resultHtml += `
+                <div class="output-files-section">
+                    <h4>📁 Generated Files</h4>
+            `;
+            
+            Object.entries(data.output_files_content).forEach(([filename, content]) => {
+                resultHtml += `
+                    <div class="file-content">
+                        <h5>${filename}</h5>
+                        <div class="file-content-body">
+                            <pre>${content}</pre>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            resultHtml += `</div>`;
+        } else if (data.output_files && data.output_files.length > 0) {
+            // 如果有文件列表但没有内容，显示文件列表
+            resultHtml += `
+                <div class="output-files-section">
+                    <h4>📁 Output Files (Content not available)</h4>
+                    <div class="files-list">
+                        ${data.output_files.map(file => `<div class="file-item"><span class="file-name">${file}</span></div>`).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 显示其他元数据
+        if (data.metadata || data.browser_data) {
+            resultHtml += `
+                <div class="raw-output-section">
+                    <h4>🔧 Metadata</h4>
+                    <div class="raw-output-content">
+                        <pre>${JSON.stringify({
+                            metadata: data.metadata,
+                            browser_data: data.browser_data
+                        }, null, 2)}</pre>
+                    </div>
+                </div>
+            `;
+        }
+        
+        browserUseContainer.innerHTML = resultHtml;
+        browserUseContainer.style.display = 'block';
+    }
+    
+    // 显示输出文件内容
+    function displayOutputFilesContent(outputFilesContent) {
+        console.log('[DEBUG] Displaying output files content:', outputFilesContent);
+        
+        // 检查文件内容是否有效
+        if (!outputFilesContent || Object.keys(outputFilesContent).length === 0) {
+            console.log('[DEBUG] Output files content is empty, do not display files content container');
+            return;
+        }
+        
+        // 创建或获取文件内容容器
+        let filesContentContainer = document.getElementById('output-files-content');
+        if (!filesContentContainer) {
+            filesContentContainer = document.createElement('div');
+            filesContentContainer.id = 'output-files-content';
+            filesContentContainer.className = 'output-files-content-container';
+            
+            // 插入到文件列表之后
+            const filesContainer = document.getElementById('output-files');
+            if (filesContainer && filesContainer.parentNode) {
+                filesContainer.parentNode.insertBefore(filesContentContainer, filesContainer.nextSibling);
+            } else {
+                // 如果没有文件容器，插入到任务状态区域
+                const taskStatus = document.getElementById('task-status');
+                if (taskStatus) {
+                    taskStatus.appendChild(filesContentContainer);
+                }
+            }
+        }
+        
+        const filesContentHtml = Object.entries(outputFilesContent).map(([filename, content]) => `
+            <div class="file-content">
+                <h5>${filename}</h5>
+                <div class="file-content-body">
+                    <pre>${content}</pre>
+                </div>
+            </div>
+        `).join('');
+        
+        filesContentContainer.innerHTML = `
+            <div class="files-content-header">
+                <h3>File Contents</h3>
+                <span class="files-count">${Object.keys(outputFilesContent).length} files</span>
+            </div>
+            <div class="files-content-list">
+                ${filesContentHtml}
+            </div>
+        `;
+        
+        filesContentContainer.style.display = 'block';
+    }
+    
+    // 清理任务信息显示
+    function clearTaskInfo() {
+        console.log('[DEBUG] Clearing task info display');
+        
+        // 清理步骤信息
+        const stepsContainer = document.getElementById('task-steps');
+        if (stepsContainer) {
+            stepsContainer.remove();
+        }
+        
+        // 清理输出信息
+        const outputContainer = document.getElementById('task-output');
+        if (outputContainer) {
+            outputContainer.remove();
+        }
+        
+        // 清理文件信息
+        const filesContainer = document.getElementById('output-files');
+        if (filesContainer) {
+            filesContainer.remove();
+        }
+        
+        // 清理文件内容信息
+        const filesContentContainer = document.getElementById('output-files-content');
+        if (filesContentContainer) {
+            filesContentContainer.remove();
+        }
+        
+        // 清理 browser-use 结果
+        const browserUseContainer = document.getElementById('browser-use-results');
+        if (browserUseContainer) {
+            browserUseContainer.remove();
+        }
+    }
+});

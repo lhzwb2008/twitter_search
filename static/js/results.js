@@ -174,7 +174,8 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.appendChild(modal);
 
         // 绑定事件
-        modal.querySelector('.modal-close').addEventListener('click', () => {
+        modal.querySelector('.modal-close').addEventListener('click', (e) => {
+            e.stopPropagation();
             document.body.removeChild(modal);
         });
 
@@ -461,4 +462,4 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelector('.search-history').classList.remove('hidden');
         currentProductId = null;
     }
-}); 
+});

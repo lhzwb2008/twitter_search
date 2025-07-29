@@ -1,197 +1,203 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI产品发现平台 - 探索最新AI工具</title>
+    <title>AI Product Discovery Platform - Explore Latest AI Tools</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <div class="container">
-        <!-- 导航头部 -->
+        <!-- Navigation Header -->
         <nav class="navigation">
             <div class="nav-brand">
-                <h1>🚀 AI产品发现平台</h1>
-                <p class="subtitle">发现最新的AI产品和工具，洞察行业趋势</p>
+                <h1>🚀 AI Product Discovery Platform</h1>
+                <p class="subtitle">Discover the latest AI products and tools, insight into industry trends</p>
             </div>
             <div class="nav-links">
-                <a href="/" class="nav-link active">搜索</a>
-                <a href="/results" class="nav-link">产品列表</a>
+                <a href="/" class="nav-link active">Search</a>
+                <a href="/results" class="nav-link">Product List</a>
             </div>
         </nav>
 
         <main>
             <!-- 搜索控制面板 -->
             <section class="search-panel">
-                <h2>搜索配置</h2>
+                <h2>Search Configuration</h2>
                 
                 <!-- 参数配置表单 -->
                 <form id="search-form" class="search-form">
                     <div class="form-grid">
                         <!-- 时间范围 -->
                         <div class="form-group">
-                            <label for="start-date">开始日期</label>
+                            <label for="start-date">Start Date</label>
                             <input type="date" id="start-date" name="startDate" value="2025-06-01" required>
                         </div>
                         
                         <div class="form-group">
-                            <label for="end-date">结束日期</label>
+                            <label for="end-date">End Date</label>
                             <input type="date" id="end-date" name="endDate" value="2025-07-01" required>
                         </div>
                         
                         <!-- 关键词 -->
                         <div class="form-group full-width">
-                            <label for="keywords">产品关键词</label>
+                            <label for="keywords">Product Keywords</label>
                             <div class="tag-input-container">
                                 <div id="keywords-tags" class="tags-list">
                                     <span class="tag" data-value="AI app">AI app <button type="button" class="tag-remove">×</button></span>
                                     <span class="tag" data-value="launch">launch <button type="button" class="tag-remove">×</button></span>
                                 </div>
-                                <input type="text" id="keyword-input" placeholder="输入产品关键词后按回车添加">
+                                <input type="text" id="keyword-input" placeholder="Enter product keywords and press Enter to add">
                             </div>
                         </div>
                         
                         <!-- 排除的公司 -->
                         <div class="form-group full-width">
-                            <label for="exclude-companies">排除的公司</label>
+                            <label for="exclude-companies">Exclude Companies</label>
                             <div class="tag-input-container">
                                 <div id="exclude-companies-tags" class="tags-list">
                                     <span class="tag" data-value="Google">Google <button type="button" class="tag-remove">×</button></span>
                                     <span class="tag" data-value="Microsoft">Microsoft <button type="button" class="tag-remove">×</button></span>
                                     <span class="tag" data-value="OpenAI">OpenAI <button type="button" class="tag-remove">×</button></span>
                                 </div>
-                                <input type="text" id="exclude-company-input" placeholder="输入要排除的公司后按回车添加">
+                                <input type="text" id="exclude-company-input" placeholder="Enter companies to exclude and press Enter to add">
                             </div>
                         </div>
                         
                         <!-- 结果限制 -->
                         <div class="form-group">
-                            <label for="result-limit">结果数量限制</label>
+                            <label for="result-limit">Result Limit</label>
                             <input type="number" id="result-limit" name="resultLimit" value="3" min="1" max="10">
                         </div>
                         
                         <!-- 目标分类 -->
                         <div class="form-group full-width">
                             <div class="category-header">
-                                <label>目标分类</label>
-                                <button type="button" id="manage-categories" class="manage-btn">管理分类</button>
+                                <label>Target Categories</label>
+                                <button type="button" id="manage-categories" class="manage-btn">Manage Categories</button>
                             </div>
                             <div id="categories-container" class="checkbox-group-extended">
                                 <!-- 默认分类 -->
                                 <label class="checkbox-label">
                                     <input type="checkbox" name="categories" value="Text Generation" checked>
-                                    文本生成
+                                    Text Generation
                                 </label>
                                 <label class="checkbox-label">
                                     <input type="checkbox" name="categories" value="Image Generation" checked>
-                                    图像生成
+                                    Image Generation
                                 </label>
                                 <label class="checkbox-label">
                                     <input type="checkbox" name="categories" value="Video Generation">
-                                    视频生成
+                                    Video Generation
                                 </label>
                                 <label class="checkbox-label">
                                     <input type="checkbox" name="categories" value="Audio Generation">
-                                    音频生成
+                                    Audio Generation
                                 </label>
                                 <label class="checkbox-label">
                                     <input type="checkbox" name="categories" value="Productivity" checked>
-                                    生产力工具
+                                    Productivity
                                 </label>
                                 <label class="checkbox-label">
                                     <input type="checkbox" name="categories" value="Development" checked>
-                                    开发工具
+                                    Development
                                 </label>
                                 <label class="checkbox-label">
                                     <input type="checkbox" name="categories" value="Entertainment">
-                                    娱乐应用
+                                    Entertainment
                                 </label>
                                 <label class="checkbox-label">
                                     <input type="checkbox" name="categories" value="Education">
-                                    教育学习
+                                    Education
                                 </label>
                                 <label class="checkbox-label">
                                     <input type="checkbox" name="categories" value="Business">
-                                    商业应用
+                                    Business
                                 </label>
                                 <label class="checkbox-label">
                                     <input type="checkbox" name="categories" value="Healthcare">
-                                    医疗健康
+                                    Healthcare
                                 </label>
                                 <label class="checkbox-label">
                                     <input type="checkbox" name="categories" value="Design">
-                                    设计工具
+                                    Design
                                 </label>
                                 <label class="checkbox-label">
                                     <input type="checkbox" name="categories" value="Other">
-                                    其他
+                                    Other
                                 </label>
                             </div>
                             <div class="category-actions">
-                                <button type="button" id="select-all-categories" class="category-action-btn">全选</button>
-                                <button type="button" id="deselect-all-categories" class="category-action-btn">全不选</button>
-                                <button type="button" id="reset-categories" class="category-action-btn">重置默认</button>
+                                <button type="button" id="select-all-categories" class="category-action-btn">Select All</button>
+                                <button type="button" id="deselect-all-categories" class="category-action-btn">Deselect All</button>
+                                <button type="button" id="reset-categories" class="category-action-btn">Reset Defaults</button>
                             </div>
                         </div>
                     </div>
                     
                     <!-- 高级选项（折叠） -->
                     <details class="advanced-options">
-                        <summary>高级选项</summary>
+                        <summary>Advanced Options</summary>
                         <div class="form-group full-width">
-                            <label for="custom-prompt">自定义Prompt（可选）</label>
-                            <textarea id="custom-prompt" rows="5" placeholder="留空使用自动生成的Prompt"></textarea>
+                            <label for="custom-prompt">Custom Prompt (Optional)</label>
+                            <textarea id="custom-prompt" rows="5" placeholder="Leave empty to use automatically generated prompt"></textarea>
                         </div>
                     </details>
                     
                     <div class="button-group">
-                        <button type="button" id="preview-prompt" class="secondary">预览生成的Prompt</button>
-                        <button type="submit" id="search-btn" class="primary">发现AI产品</button>
+                        <button type="button" id="preview-prompt" class="secondary">Preview Generated Prompt</button>
+                        <button type="submit" id="search-btn" class="primary">Discover AI Products</button>
                     </div>
                 </form>
 
                 <!-- 任务状态和实时预览 -->
                 <div id="task-status" class="task-status hidden">
-                    <h3>任务执行中</h3>
-                    <p class="status-text">准备中...</p>
+                    <h3>Task Executing</h3>
+                    <p class="status-text">Preparing...</p>
                     
                     <!-- 任务控制按钮 -->
                     <div id="task-controls" class="task-controls hidden">
 
-                        <button id="refresh-preview-btn" class="secondary">刷新预览</button>
+                        <button id="refresh-preview-btn" class="secondary">Refresh Preview</button>
                         <span id="task-id-display" class="task-id"></span>
                     </div>
                     
-                    <!-- 实时预览iframe -->
+                    <!-- 实时预览链接 -->
                     <div id="live-preview" class="live-preview hidden">
                         <div class="preview-header">
-                            <h4>🔴 实时预览</h4>
-                            <a href="#" target="_blank" class="preview-link">在新窗口打开</a>
+                            <h4>🔴 Live Preview</h4>
+                            <a id="preview-link" href="#" target="_blank" class="preview-link-btn">
+                                Open in New Window
+                            </a>
                         </div>
-                        <div class="preview-container">
-                            <iframe id="preview-iframe" src="" frameborder="0"></iframe>
+                        <div class="preview-content">
+                            <p class="preview-description">
+                                <i class="fas fa-external-link-alt"></i>
+                                Click the button above to view the browser-use agent's live execution process in a new window
+                            </p>
                         </div>
                     </div>
                     
-                    <div class="progress-bar">
+                    <!-- 移除这个进度条 -->
+                    <!-- <div class="progress-bar">
                         <div class="progress-fill"></div>
-                    </div>
+                    </div> -->
                 </div>
             </section>
 
             <!-- 搜索结果 -->
             <section id="results" class="results-section hidden">
-                <h2>搜索结果</h2>
+                <h2>Search Results</h2>
                 
                 <!-- 搜索总结 -->
                 <div id="search-summary" class="search-summary hidden">
-                    <h3>📊 搜索总结</h3>
+                    <h3>📊 Search Summary</h3>
                     <p class="summary-text"></p>
                     <div class="total-count"></div>
                 </div>
                 
                 <div class="results-stats">
-                    <span class="product-count">找到 0 个产品</span>
+                    <span class="product-count">Found 0 products</span>
                     <span class="search-note"></span>
                 </div>
                 <div id="products-grid" class="products-grid">
@@ -200,7 +206,7 @@
                 
                 <!-- 搜索说明 -->
                 <div id="search-note-section" class="search-note-section hidden">
-                    <h4>ℹ️ 搜索说明</h4>
+                    <h4>ℹ️ Search Instructions</h4>
                     <p class="note-text"></p>
                 </div>
             </section>
@@ -208,13 +214,13 @@
             <!-- 加载提示 -->
             <div id="loading" class="loading hidden">
                 <div class="spinner"></div>
-                <p class="loading-text">🔍 AI正在搜索中...</p>
-                <p class="loading-hint">预计需要10分钟左右，您可以先去忙其他事情 ☕</p>
+                <p class="loading-text">🔍 AI is searching...</p>
+                <p class="loading-hint">Estimated time: 10 minutes, you can do other things ☕</p>
             </div>
         </main>
 
         <footer>
-            <p>智能AI产品发现 | 助力创新者洞察行业趋势</p>
+            <p>Smart AI Product Discovery | Empowering Innovators to Insight Industry Trends</p>
         </footer>
     </div>
 
@@ -250,11 +256,11 @@
                 </span>
             </div>
             <div class="product-links">
-                <a href="#" class="product-url" target="_blank">访问产品</a>
-                <a href="#" class="post-url" target="_blank">查看推文</a>
+                <a href="#" class="product-url" target="_blank">Visit Product</a>
+                <a href="#" class="post-url" target="_blank">View Tweets</a>
             </div>
             <div class="product-source">
-                <span class="source-tag">正常搜索</span>
+                <span class="source-tag">Normal Search</span>
             </div>
         </article>
     </template>
@@ -263,7 +269,7 @@
     <div id="prompt-modal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>生成的搜索Prompt</h3>
+                <h3>Generated Search Prompt</h3>
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
@@ -276,34 +282,34 @@
     <div id="category-modal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>🏷️ 分类管理</h3>
+                <h3>🏷️ Category Management</h3>
                 <button class="modal-close category-modal-close">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="category-management">
                     <div class="category-section">
-                        <h4>预设分类</h4>
-                        <p class="section-desc">这些是系统预设的AI产品分类，可以根据需要启用或禁用</p>
+                        <h4>Preset Categories</h4>
+                        <p class="section-desc">These are system-defined AI product categories that can be enabled or disabled as needed</p>
                         <div id="preset-categories" class="category-list">
-                            <!-- 预设分类将由JavaScript动态生成 -->
+                            <!-- Preset categories will be generated dynamically by JavaScript -->
                         </div>
                     </div>
                     
                     <div class="category-section">
-                        <h4>自定义分类</h4>
-                        <p class="section-desc">添加您自己的产品分类，搜索结果会自动归类到这些分类中</p>
+                        <h4>Custom Categories</h4>
+                        <p class="section-desc">Add your own product categories, search results will be automatically categorized into these</p>
                         <div class="add-category-form">
-                            <input type="text" id="new-category-input" placeholder="输入新分类名称..." maxlength="20">
-                            <button type="button" id="add-category-btn" class="primary">添加分类</button>
+                            <input type="text" id="new-category-input" placeholder="Enter new category name..." maxlength="20">
+                            <button type="button" id="add-category-btn" class="primary">Add Category</button>
                         </div>
                         <div id="custom-categories" class="category-list">
-                            <!-- 自定义分类将由JavaScript动态生成 -->
+                            <!-- Custom categories will be generated dynamically by JavaScript -->
                         </div>
                     </div>
                     
                     <div class="category-actions-modal">
-                        <button type="button" id="save-categories" class="primary">保存设置</button>
-                        <button type="button" id="reset-to-default" class="secondary">恢复默认</button>
+                        <button type="button" id="save-categories" class="primary">Save Settings</button>
+                        <button type="button" id="reset-to-default" class="secondary">Reset Defaults</button>
                     </div>
                 </div>
             </div>
@@ -312,4 +318,4 @@
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
-</html> 
+</html>
