@@ -3,15 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI产品Twitter搜索</title>
+    <title>AI产品发现平台 - 探索最新AI工具</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>🤖 AI产品Twitter搜索</h1>
-            <p class="subtitle">从Privacy Redirect Nitter发现最新的AI产品和工具</p>
-        </header>
+        <!-- 导航头部 -->
+        <nav class="navigation">
+            <div class="nav-brand">
+                <h1>🚀 AI产品发现平台</h1>
+                <p class="subtitle">发现最新的AI产品和工具，洞察行业趋势</p>
+            </div>
+            <div class="nav-links">
+                <a href="/" class="nav-link active">搜索</a>
+                <a href="/results" class="nav-link">产品列表</a>
+            </div>
+        </nav>
 
         <main>
             <!-- 搜索控制面板 -->
@@ -34,24 +41,13 @@
                         
                         <!-- 关键词 -->
                         <div class="form-group full-width">
-                            <label for="keywords">搜索关键词</label>
+                            <label for="keywords">产品关键词</label>
                             <div class="tag-input-container">
                                 <div id="keywords-tags" class="tags-list">
                                     <span class="tag" data-value="AI app">AI app <button type="button" class="tag-remove">×</button></span>
                                     <span class="tag" data-value="launch">launch <button type="button" class="tag-remove">×</button></span>
                                 </div>
-                                <input type="text" id="keyword-input" placeholder="输入关键词后按回车添加">
-                            </div>
-                        </div>
-                        
-                        <!-- 修饰词 -->
-                        <div class="form-group full-width">
-                            <label for="modifiers">修饰词</label>
-                            <div class="tag-input-container">
-                                <div id="modifiers-tags" class="tags-list">
-                                    <!-- 默认为空，简化搜索 -->
-                                </div>
-                                <input type="text" id="modifier-input" placeholder="输入修饰词后按回车添加">
+                                <input type="text" id="keyword-input" placeholder="输入产品关键词后按回车添加">
                             </div>
                         </div>
                         
@@ -65,17 +61,6 @@
                                     <span class="tag" data-value="OpenAI">OpenAI <button type="button" class="tag-remove">×</button></span>
                                 </div>
                                 <input type="text" id="exclude-company-input" placeholder="输入要排除的公司后按回车添加">
-                            </div>
-                        </div>
-                        
-                        <!-- 排除的内容 -->
-                        <div class="form-group full-width">
-                            <label for="exclude-content">排除的内容</label>
-                            <div class="tag-input-container">
-                                <div id="exclude-content-tags" class="tags-list">
-                                    <!-- 默认为空，简化搜索 -->
-                                </div>
-                                <input type="text" id="exclude-content-input" placeholder="输入要排除的内容后按回车添加">
                             </div>
                         </div>
                         
@@ -161,7 +146,7 @@
                     
                     <div class="button-group">
                         <button type="button" id="preview-prompt" class="secondary">预览生成的Prompt</button>
-                        <button type="submit" id="search-btn" class="primary">开始搜索</button>
+                        <button type="submit" id="search-btn" class="primary">发现AI产品</button>
                     </div>
                 </form>
 
@@ -172,7 +157,7 @@
                     
                     <!-- 任务控制按钮 -->
                     <div id="task-controls" class="task-controls hidden">
-                        <button id="check-result-btn" class="secondary">手动检查结果</button>
+
                         <button id="refresh-preview-btn" class="secondary">刷新预览</button>
                         <span id="task-id-display" class="task-id"></span>
                     </div>
@@ -229,7 +214,7 @@
         </main>
 
         <footer>
-            <p>Powered by Browser-use API | <a href="https://browser-use.com" target="_blank">了解更多</a></p>
+            <p>智能AI产品发现 | 助力创新者洞察行业趋势</p>
         </footer>
     </div>
 
@@ -267,6 +252,9 @@
             <div class="product-links">
                 <a href="#" class="product-url" target="_blank">访问产品</a>
                 <a href="#" class="post-url" target="_blank">查看推文</a>
+            </div>
+            <div class="product-source">
+                <span class="source-tag">正常搜索</span>
             </div>
         </article>
     </template>

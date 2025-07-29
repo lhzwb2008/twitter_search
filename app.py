@@ -30,59 +30,101 @@ MYSQL_CONFIG = {
     'charset': 'utf8mb4'
 }
 
-# 默认的搜索Prompt - 灵活版
-DEFAULT_PROMPT = """You are an AI Product Discovery Expert. Your goal is to find AI-related products from Twitter mirror sites.
+# 默认的搜索Prompt - 两阶段搜索版
+DEFAULT_PROMPT = """You are an AI Product Discovery Expert. Your task is to perform a TWO-STAGE search to comprehensively discover AI products and their Twitter presence.
 
-IMPORTANT: You MUST return at least 3 AI products in JSON format. Follow these flexible strategies:
+STAGE 1: PRODUCT DISCOVERY
+Find AI-related products from Twitter mirror sites:
 
 1. Primary Strategy - Try multiple Nitter instances:
    - https://nitter.privacyredirect.com/
    - https://nitter.net/
    - https://nitter.poast.org/
    - https://nitter.1d4.us/
-   If one fails, try the next one.
 
 2. Search Flexibility:
    - Start with date range: 2025-06-01 to 2025-07-01
    - If no results, expand to: 2025-05-01 to 2025-07-31
-   - If still no results, search last 90 days
    - Try multiple queries:
      * "AI app" OR "AI tool" launch
      * "new AI" startup
      * "launched AI" product
      * "AI agent" OR "AI assistant"
-     * Just "AI" with recent filter
 
-3. Result Requirements:
-   - MUST find at least 3 AI-related products
-   - If exact matches aren't found, include ANY AI products you find
-   - Products can be from any time period if needed
-   - Include products even without all details (fill missing with empty strings)
+3. For EACH product found, extract:
+   - Product name
+   - Brief description
+   - Official website (if mentioned)
+   - Category
+   - The discovery post URL and metrics
 
-4. Output Format (MANDATORY):
-   You MUST return ONLY a JSON object, no other text:
-   {
-     "products": [
-       {
-         "name": "Product Name",
-         "description": "Brief description",
-         "url": "https://productwebsite.com",
-         "category": "Productivity",
-         "metrics": {"likes": 0, "retweets": 0, "replies": 0, "views": 0},
-         "post_url": "https://nitter.net/username/status/123456"
-       }
-     ]
-   }
+STAGE 2: DEEP PRODUCT SEARCH
+For EACH product discovered in Stage 1, perform additional searches:
 
-   IMPORTANT URL GUIDELINES:
-   - "url": Product's official website/demo (NOT Nitter link)
-   - "post_url": The Nitter post where you found this product
-   - If no official website found, set "url" to empty string ""
-   - Always provide "post_url" with the actual Nitter post link
+1. Search queries for each product:
+   - "[Product Name]"
+   - "[Product Name] launch"
+   - "[Product Name] review"
+   - "[Product Name] demo"
+   - "[Product Name] AI"
+
+2. Collect ALL related posts for each product:
+   - Original announcements
+   - User reviews and feedback
+   - Demos and tutorials
+   - News coverage
+   - Community discussions
+
+3. For EACH post found:
+   a) Click on the individual tweet to get specific post URL
+   b) Extract exact URL (https://nitter.net/username/status/NUMBERS)
+   c) Get real metrics from the individual post page
+   d) Extract content, author, date
+
+CRITICAL OUTPUT FORMAT:
+Return ONLY a JSON object with comprehensive data:
+
+{
+  "products": [
+    {
+      "name": "Product Name",
+      "description": "Brief description from discovery",
+      "url": "https://productwebsite.com",
+      "category": "Productivity",
+      "discovery_post": {
+        "post_url": "https://nitter.net/user/status/123",
+        "metrics": {"likes": 5, "retweets": 2, "replies": 1, "views": 50}
+      },
+      "all_posts": [
+        {
+          "post_url": "https://nitter.net/user1/status/123",
+          "content": "Post content",
+          "author": "username",
+          "post_date": "2024-01-01T12:00:00Z",
+          "metrics": {"likes": 10, "retweets": 5, "replies": 2, "views": 100}
+        },
+        {
+          "post_url": "https://nitter.net/user2/status/456",
+          "content": "Another post about the product",
+          "author": "username2", 
+          "post_date": "2024-01-02T15:30:00Z",
+          "metrics": {"likes": 8, "retweets": 3, "replies": 1, "views": 75}
+        }
+      ]
+    }
+  ]
+}
+
+REQUIREMENTS:
+- MUST find at least 3 products
+- Each product MUST have multiple posts (aim for 3-10 posts per product)
+- All post URLs must be specific individual posts, NOT search pages
+- Extract real metrics from individual post pages
+- If no official website found, set "url" to ""
 
 Categories: 'Text Generation', 'Image Generation', 'Audio Generation', 'Video Generation', 'Productivity', 'Development', 'Other'
 
-CRITICAL: Return ONLY the JSON object, no explanations or markdown."""
+CRITICAL: Return ONLY the JSON object, no explanations."""
 
 # 存储搜索结果的简单缓存
 search_cache = {}
@@ -133,7 +175,76 @@ def init_database():
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                 """)
                 
-                # 检查是否已有默认设置，如果没有则插入
+                # 创建搜索记录表
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS search_records (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        search_key VARCHAR(255) NOT NULL COMMENT '搜索唯一标识：关键词+时间范围的hash',
+                        keywords JSON NOT NULL COMMENT '搜索关键词列表',
+                        start_date DATE NOT NULL COMMENT '搜索开始日期',
+                        end_date DATE NOT NULL COMMENT '搜索结束日期',
+                        categories JSON NOT NULL COMMENT '搜索的分类列表',
+                        task_id VARCHAR(100) COMMENT 'Browser-use任务ID',
+                        status ENUM('pending', 'running', 'completed', 'failed') DEFAULT 'pending' COMMENT '搜索状态',
+                        total_products INT DEFAULT 0 COMMENT '找到的产品总数',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        UNIQUE KEY unique_search (search_key),
+                        INDEX idx_date_range (start_date, end_date),
+                        INDEX idx_status (status)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """)
+                
+                # 创建产品表
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS products (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        search_id INT NOT NULL COMMENT '关联的搜索记录ID',
+                        name VARCHAR(255) NOT NULL COMMENT '产品名称',
+                        description TEXT COMMENT '产品描述',
+                        category VARCHAR(100) COMMENT '产品分类',
+                        official_url VARCHAR(500) COMMENT '产品官方网站',
+                        first_post_url VARCHAR(500) COMMENT '首次发现的推文链接',
+                        deep_search_completed BOOLEAN DEFAULT FALSE COMMENT '是否已完成深度搜索',
+                        total_likes INT DEFAULT 0 COMMENT '总点赞数',
+                        total_retweets INT DEFAULT 0 COMMENT '总转发数',
+                        total_replies INT DEFAULT 0 COMMENT '总回复数',
+                        total_views INT DEFAULT 0 COMMENT '总浏览数',
+                        total_posts INT DEFAULT 1 COMMENT '相关推文总数',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        FOREIGN KEY (search_id) REFERENCES search_records(id) ON DELETE CASCADE,
+                        INDEX idx_search_id (search_id),
+                        INDEX idx_name (name),
+                        INDEX idx_category (category)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """)
+                
+                # 创建推文表
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS posts (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        product_id INT NOT NULL COMMENT '关联的产品ID',
+                        post_url VARCHAR(500) NOT NULL COMMENT '推文链接',
+                        content TEXT COMMENT '推文内容',
+                        author VARCHAR(100) COMMENT '作者用户名',
+                        post_date DATETIME COMMENT '发布时间',
+                        likes INT DEFAULT 0 COMMENT '点赞数',
+                        retweets INT DEFAULT 0 COMMENT '转发数',
+                        replies INT DEFAULT 0 COMMENT '回复数',
+                        views INT DEFAULT 0 COMMENT '浏览数',
+                        is_original BOOLEAN DEFAULT FALSE COMMENT '是否为原始发现的推文',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+                        UNIQUE KEY unique_post (product_id, post_url),
+                        INDEX idx_product_id (product_id),
+                        INDEX idx_post_date (post_date),
+                        INDEX idx_metrics (likes, retweets, replies, views)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """)
+                
+                # 检查是否已有默认分类设置，如果没有则插入
                 cursor.execute("SELECT COUNT(*) FROM category_settings WHERE user_id = 'default'")
                 count = cursor.fetchone()[0]
                 
@@ -237,83 +348,311 @@ def get_default_category_settings():
         'custom': []
     }
 
+def save_search_results(task_id, status, products_data):
+    """保存搜索结果到数据库，支持从失败任务中恢复的数据"""
+    try:
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                # 查找对应的搜索记录
+                cursor.execute("SELECT id FROM search_records WHERE task_id = %s", (task_id,))
+                search_record = cursor.fetchone()
+                
+                if not search_record:
+                    print(f"[DEBUG] 未找到task_id为{task_id}的搜索记录")
+                    return
+                
+                search_id = search_record[0]
+                products = products_data.get('products', [])
+                
+                # 检查是否是从日志恢复的数据
+                is_recovered = products_data.get('recovered_from_logs', False)
+                
+                # 更新搜索记录状态
+                if is_recovered:
+                    # 如果是从日志恢复的，标记为部分完成
+                    final_status = 'completed' if products else 'failed'
+                    note = f"任务中断，但成功从执行日志恢复了{len(products)}个产品"
+                else:
+                    final_status = 'completed' if status == 'finished' else 'failed'
+                    note = ""
+                
+                cursor.execute("""
+                    UPDATE search_records 
+                    SET status = %s, total_products = %s 
+                    WHERE id = %s
+                """, (final_status, len(products), search_id))
+                
+                # 保存产品数据
+                if products:
+                    saved_products = set()  # 用于去重
+                    for product in products:
+                        product_name = product.get('name', '').strip()
+                        if not product_name or product_name in saved_products:
+                            continue  # 跳过空名称或重复产品
+                        
+                        saved_products.add(product_name)
+                        
+                        # 检查该搜索中是否已存在同名产品
+                        cursor.execute("""
+                            SELECT id FROM products 
+                            WHERE search_id = %s AND name = %s
+                        """, (search_id, product_name))
+                        
+                        existing_product = cursor.fetchone()
+                        if existing_product:
+                            print(f"[DEBUG] 产品 '{product_name}' 已存在，跳过")
+                            continue
+                        
+                        # 处理新格式和旧格式的兼容性
+                        discovery_post = product.get('discovery_post', {})
+                        all_posts = product.get('all_posts', [])
+                        
+                        # 如果是旧格式或日志恢复格式，转换为新格式
+                        if not discovery_post and not all_posts:
+                            # 旧格式或日志恢复格式兼容
+                            discovery_post = {
+                                'post_url': product.get('post_url', ''),
+                                'metrics': product.get('metrics', {})
+                            }
+                            all_posts = [{
+                                'post_url': product.get('post_url', ''),
+                                'content': product.get('description', ''),
+                                'author': '',
+                                'post_date': None,
+                                'metrics': product.get('metrics', {})
+                            }]
+                        
+                        # 计算汇总的社交数据
+                        total_likes = 0
+                        total_retweets = 0
+                        total_replies = 0
+                        total_views = 0
+                        total_posts = len(all_posts)
+                        
+                        for post in all_posts:
+                            metrics = post.get('metrics', {})
+                            total_likes += metrics.get('likes', 0)
+                            total_retweets += metrics.get('retweets', 0)
+                            total_replies += metrics.get('replies', 0)
+                            total_views += metrics.get('views', 0)
+                        
+                        # 插入产品记录
+                        cursor.execute("""
+                            INSERT INTO products (
+                                search_id, name, description, category, 
+                                official_url, first_post_url, total_likes, 
+                                total_retweets, total_replies, total_views, total_posts,
+                                deep_search_completed
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (
+                            search_id,
+                            product_name,
+                            product.get('description', ''),
+                            product.get('category', ''),
+                            product.get('url', ''),
+                            discovery_post.get('post_url', ''),
+                            total_likes,
+                            total_retweets,
+                            total_replies,
+                            total_views,
+                            total_posts,
+                            True if all_posts else False  # 如果有多个推文，标记为已完成深度搜索
+                        ))
+                        
+                        product_id = cursor.lastrowid
+                        print(f"[DEBUG] 插入产品 '{product_name}'，ID: {product_id}，推文数: {total_posts}")
+                        
+                        # 插入所有相关推文
+                        for i, post in enumerate(all_posts):
+                            post_url = post.get('post_url', '').strip()
+                            if post_url and not post_url.endswith('/search?'):
+                                try:
+                                    cursor.execute("""
+                                        INSERT INTO posts (
+                                            product_id, post_url, content, author, post_date,
+                                            likes, retweets, replies, views, is_original
+                                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                    """, (
+                                        product_id,
+                                        post_url,
+                                        post.get('content', product.get('description', '')),
+                                        post.get('author', ''),
+                                        post.get('post_date'),
+                                        post.get('metrics', {}).get('likes', 0),
+                                        post.get('metrics', {}).get('retweets', 0),
+                                        post.get('metrics', {}).get('replies', 0),
+                                        post.get('metrics', {}).get('views', 0),
+                                        i == 0  # 第一个推文标记为原始发现推文
+                                    ))
+                                except Exception as e:
+                                    print(f"[DEBUG] 插入推文失败: {e}")
+                                    continue
+                
+                connection.commit()
+                if is_recovered:
+                    print(f"[DEBUG] 成功从日志恢复并保存{len(products)}个产品到数据库")
+                else:
+                    print(f"[DEBUG] 成功保存{len(products)}个产品到数据库")
+                
+    except Exception as e:
+        print(f"[DEBUG] 保存搜索结果时出错: {e}")
+        raise
+
 @app.route('/')
 def index():
     """主页"""
     return render_template('index.html')
 
+@app.route('/results')
+def results():
+    """结果展示页面"""
+    return render_template('results.html')
+
 @app.route('/api/search', methods=['POST'])
 def search():
-    """执行搜索任务"""
-    data = request.json
-    prompt = data.get('prompt', DEFAULT_PROMPT)
-    
-    # 创建任务
-    task_result = create_browser_task(prompt)
-    
-    if not task_result or 'id' not in task_result:
-        return jsonify({'error': '任务创建失败'}), 500
-    
-    task_id = task_result['id']
-    live_url = task_result.get('live_url', '')
-    
-    # 如果创建时没有返回live_url，尝试获取
-    if not live_url:
-        max_retries = 10  # 增加到10次
-        retry_interval = 3  # 每次等待3秒
+    """启动搜索任务"""
+    try:
+        data = request.get_json()
         
-        for attempt in range(1, max_retries + 1):
-            print(f"[DEBUG] 获取live_url尝试 {attempt}/{max_retries}")
-            time.sleep(retry_interval)
+        # 提取搜索参数
+        start_date = data.get('startDate', '2025-06-01')
+        end_date = data.get('endDate', '2025-07-01')
+        keywords = data.get('keywords', [])
+        exclude_companies = data.get('excludeCompanies', [])
+        result_limit = data.get('resultLimit', 3)
+        categories = data.get('categories', [])
+        
+        # 构建关键词字符串
+        keyword_str = ' OR '.join([f'"{kw}"' for kw in keywords]) if keywords else '"AI app"'
+        
+        # 构建排除公司条件
+        exclude_str = ' '.join([f'-from:{company}' for company in exclude_companies])
+        
+        # 构建分类条件
+        category_str = ', '.join(categories) if categories else '文本生成, 图像生成, 视频生成, 音频生成, 代码生成, 数据分析, 聊天机器人, 生产力工具, 开发工具, 设计工具'
+        
+        # 构建搜索提示
+        prompt = f"""
+You are a professional AI Product Discovery Expert. Search and discover AI products, applications, and tools on Twitter/X.
+
+**Search Requirements:**
+- Time range: {start_date} to {end_date}
+- Main keywords: {keyword_str}
+- Exclude conditions: {exclude_str}
+- Target categories: {category_str}
+- Find at least: {result_limit} products
+
+**Task Steps:**
+1. Use Nitter instances to search for relevant AI products
+2. Extract product information (name, description, links, category)
+3. Collect detailed tweet data (URL, content, author, date, engagement metrics)
+4. Organize into structured product list
+
+**Output Format:**
+Return results in JSON format:
+```json
+{{
+  "products": [
+    {{
+      "name": "Product Name",
+      "description": "Product Description",
+      "url": "Product website or related link",
+      "category": "Product Category",
+      "discovery_post": {{
+        "post_url": "Tweet URL where product was discovered",
+        "metrics": {{"likes": number, "retweets": number, "replies": number, "views": number}}
+      }},
+      "all_posts": [
+        {{
+          "post_url": "Tweet URL",
+          "content": "Tweet content",
+          "author": "Author handle",
+          "post_date": "Post date",
+          "metrics": {{"likes": number, "retweets": number, "replies": number, "views": number}}
+        }}
+      ]
+    }}
+  ],
+  "summary": "Search summary",
+  "total_found": number_of_products_found
+}}
+```
+
+Start searching!
+"""
+
+        # 调用browser-use API
+        task_response = create_browser_task(prompt)
+        
+        if task_response and 'id' in task_response:
+            return jsonify({
+                'task_id': task_response['id'],
+                'live_url': task_response.get('live_url'),
+                'status': 'started'
+            })
+        else:
+            return jsonify({'error': '启动搜索任务失败'}), 500
             
-            task_detail = get_task_detail_from_api(task_id)
-            if task_detail and 'live_url' in task_detail and task_detail['live_url']:
-                live_url = task_detail['live_url']
-                print(f"[DEBUG] 成功获取live_url: {live_url}")
-                break
-            else:
-                print(f"[DEBUG] 第{attempt}次尝试未获取到live_url，继续重试...")
-        
-        if not live_url:
-            print(f"[DEBUG] 经过{max_retries}次尝试仍未获取到live_url")
-    
-    # 返回任务信息，让前端轮询状态
-    return jsonify({
-        'task_id': task_id,
-        'live_url': live_url,
-        'status': 'created'
-    })
+    except Exception as e:
+        print(f"搜索错误: {str(e)}")
+        return jsonify({'error': f'搜索失败: {str(e)}'}), 500
 
 @app.route('/api/task/<task_id>/status', methods=['GET'])
 def task_status(task_id):
-    """获取任务状态"""
+    """获取任务状态，支持从失败任务中恢复数据"""
     status = get_task_status_from_api(task_id)
     
     print(f"[DEBUG] 任务 {task_id} 状态: {status}")
     
-    # 如果任务完成，获取详细结果
+    # 如果任务完成、失败或停止，都尝试获取和解析结果
     if status in ['finished', 'failed', 'stopped']:
         result = get_task_detail_from_api(task_id)
         
         print(f"[DEBUG] 获取到任务详情，开始解析...")
         
-        # 尝试解析结果中的JSON
+        # 尝试解析结果中的数据（包括从日志恢复）
         products_data = parse_task_result(result)
         
-        print(f"[DEBUG] 解析完成，产品数量: {len(products_data.get('products', []))}")
+        # 检查是否从日志恢复了数据
+        is_recovered = products_data.get('recovered_from_logs', False)
+        products_count = len(products_data.get('products', []))
+        
+        if is_recovered:
+            print(f"[DEBUG] 任务{status}，但从执行日志恢复了{products_count}个产品")
+        else:
+            print(f"[DEBUG] 解析完成，产品数量: {products_count}")
+        
+        # 保存搜索结果到数据库（无论是否成功完成）
+        try:
+            save_search_results(task_id, status, products_data)
+        except Exception as e:
+            print(f"[DEBUG] 保存搜索结果失败: {e}")
         
         # 缓存结果
         search_cache[task_id] = {
             'status': status,
             'result': products_data,
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'recovered_from_logs': is_recovered
         }
         
-        return jsonify({
-            'status': status,
-            'result': products_data,
-            'live_url': result.get('live_url', '')
-        })
+        # 根据是否恢复了数据来决定返回状态
+        if status == 'failed' and is_recovered and products_count > 0:
+            # 如果任务失败但恢复了数据，返回部分成功状态
+            return jsonify({
+                'status': 'partial_success',
+                'result': products_data,
+                'live_url': result.get('live_url', ''),
+                'message': f'任务中断，但成功恢复了{products_count}个产品数据',
+                'recovered_from_logs': True
+            })
+        else:
+            return jsonify({
+                'status': status,
+                'result': products_data,
+                'live_url': result.get('live_url', ''),
+                'recovered_from_logs': is_recovered
+            })
     else:
         # 对于运行中的任务，也尝试获取live_url
         result = get_task_detail_from_api(task_id)
@@ -332,10 +671,28 @@ def task_status(task_id):
                     print(f"[DEBUG] 状态轮询中成功获取live_url: {live_url}")
                     break
         
-        return jsonify({
+        # 对于长时间运行的任务，尝试获取中间进度
+        intermediate_data = None
+        if status == 'running':
+            try:
+                # 尝试从当前结果中提取中间数据
+                intermediate_data = extract_intermediate_progress(result)
+                if intermediate_data:
+                    print(f"[DEBUG] 提取到中间进度数据: {len(intermediate_data.get('products', []))}个产品")
+            except Exception as e:
+                print(f"[DEBUG] 提取中间进度失败: {e}")
+        
+        response_data = {
             'status': status,
             'live_url': live_url
-        })
+        }
+        
+        print(f"[DEBUG] 返回运行中任务状态: status={status}, live_url={live_url}")
+        
+        if intermediate_data:
+            response_data['intermediate_progress'] = intermediate_data
+        
+        return jsonify(response_data)
 
 @app.route('/api/prompt', methods=['GET'])
 def get_prompt():
@@ -383,6 +740,497 @@ def reset_categories():
             return jsonify({'error': '重置失败'}), 500
     except Exception as e:
         return jsonify({'error': f'重置分类设置时出错: {str(e)}'}), 500
+
+@app.route('/api/search-records', methods=['GET'])
+def get_search_records():
+    """获取搜索记录列表"""
+    try:
+        # 自动清理空搜索记录
+        cleaned_count = auto_cleanup_empty_searches()
+        if cleaned_count > 0:
+            print(f"[DEBUG] 自动清理了 {cleaned_count} 个空搜索记录")
+        
+        status_filter = request.args.get('status', '')
+        keyword_filter = request.args.get('keyword', '')
+        
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                # 构建查询条件
+                where_conditions = []
+                params = []
+                
+                if status_filter:
+                    where_conditions.append("status = %s")
+                    params.append(status_filter)
+                
+                if keyword_filter:
+                    where_conditions.append("JSON_SEARCH(keywords, 'one', %s) IS NOT NULL")
+                    params.append(f'%{keyword_filter}%')
+                
+                where_clause = ""
+                if where_conditions:
+                    where_clause = "WHERE " + " AND ".join(where_conditions)
+                
+                # 查询搜索记录
+                cursor.execute(f"""
+                    SELECT id, search_key, keywords, start_date, end_date, 
+                           categories, status, total_products, created_at
+                    FROM search_records 
+                    {where_clause}
+                    ORDER BY created_at DESC
+                    LIMIT 50
+                """, params)
+                
+                records = []
+                for row in cursor.fetchall():
+                    records.append({
+                        'id': row[0],
+                        'search_key': row[1],
+                        'keywords': json.loads(row[2]),
+                        'start_date': row[3].isoformat(),
+                        'end_date': row[4].isoformat(),
+                        'categories': json.loads(row[5]),
+                        'status': row[6],
+                        'total_products': row[7],
+                        'created_at': row[8].isoformat()
+                    })
+                
+                return jsonify({'records': records})
+                
+    except Exception as e:
+        return jsonify({'error': f'获取搜索记录失败: {str(e)}'}), 500
+
+@app.route('/api/search-records/<int:search_id>', methods=['DELETE'])
+def delete_search_record(search_id):
+    """删除搜索记录及其相关产品和推文"""
+    try:
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                # 检查搜索记录是否存在
+                cursor.execute("SELECT id FROM search_records WHERE id = %s", (search_id,))
+                if not cursor.fetchone():
+                    return jsonify({'error': '搜索记录不存在'}), 404
+                
+                # 删除搜索记录（由于外键约束，相关的产品和推文会自动删除）
+                cursor.execute("DELETE FROM search_records WHERE id = %s", (search_id,))
+                connection.commit()
+                
+                print(f"[DEBUG] 已删除搜索记录 {search_id} 及其所有相关数据")
+                return jsonify({'success': True, 'message': '搜索记录已删除'})
+                
+    except Exception as e:
+        return jsonify({'error': f'删除搜索记录失败: {str(e)}'}), 500
+
+def auto_cleanup_empty_searches():
+    """自动清理没有产品的搜索记录"""
+    try:
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                # 找到没有产品的已完成搜索记录
+                cursor.execute("""
+                    SELECT sr.id, sr.keywords 
+                    FROM search_records sr 
+                    LEFT JOIN products p ON sr.id = p.search_id 
+                    WHERE sr.status = 'completed' 
+                    AND sr.total_products = 0 
+                    AND p.id IS NULL
+                """)
+                
+                empty_searches = cursor.fetchall()
+                
+                if empty_searches:
+                    # 删除这些空搜索记录
+                    search_ids = [row[0] for row in empty_searches]
+                    placeholders = ','.join(['%s'] * len(search_ids))
+                    cursor.execute(f"DELETE FROM search_records WHERE id IN ({placeholders})", search_ids)
+                    connection.commit()
+                    
+                    print(f"[DEBUG] 自动清理了 {len(empty_searches)} 个空搜索记录")
+                    return len(empty_searches)
+                
+                return 0
+                
+    except Exception as e:
+        print(f"[DEBUG] 自动清理失败: {e}")
+        return 0
+
+@app.route('/api/search-records/<int:search_id>/products', methods=['GET'])
+def get_search_products(search_id):
+    """获取指定搜索的产品列表"""
+    try:
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT id, name, description, category, official_url, 
+                           first_post_url, deep_search_completed, total_likes, 
+                           total_retweets, total_replies, total_views, total_posts
+                    FROM products 
+                    WHERE search_id = %s
+                    ORDER BY total_likes + total_retweets DESC
+                """, (search_id,))
+                
+                products = []
+                for row in cursor.fetchall():
+                    products.append({
+                        'id': row[0],
+                        'name': row[1],
+                        'description': row[2],
+                        'category': row[3],
+                        'official_url': row[4],
+                        'first_post_url': row[5],
+                        'deep_search_completed': row[6],
+                        'total_likes': row[7],
+                        'total_retweets': row[8],
+                        'total_replies': row[9],
+                        'total_views': row[10],
+                        'total_posts': row[11]
+                    })
+                
+                return jsonify({'products': products})
+                
+    except Exception as e:
+        return jsonify({'error': f'获取产品列表失败: {str(e)}'}), 500
+
+@app.route('/api/products/<int:product_id>', methods=['GET'])
+def get_product_detail(product_id):
+    """获取产品详情"""
+    try:
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                # 获取产品基本信息
+                cursor.execute("""
+                    SELECT id, name, description, category, official_url, 
+                           first_post_url, deep_search_completed, total_likes, 
+                           total_retweets, total_replies, total_views, total_posts
+                    FROM products 
+                    WHERE id = %s
+                """, (product_id,))
+                
+                product_row = cursor.fetchone()
+                if not product_row:
+                    return jsonify({'error': '产品不存在'}), 404
+                
+                product = {
+                    'id': product_row[0],
+                    'name': product_row[1],
+                    'description': product_row[2],
+                    'category': product_row[3],
+                    'official_url': product_row[4],
+                    'first_post_url': product_row[5],
+                    'deep_search_completed': product_row[6],
+                    'total_likes': product_row[7],
+                    'total_retweets': product_row[8],
+                    'total_replies': product_row[9],
+                    'total_views': product_row[10],
+                    'total_posts': product_row[11]
+                }
+                
+                # 获取相关推文
+                cursor.execute("""
+                    SELECT post_url, content, author, post_date, 
+                           likes, retweets, replies, views, is_original
+                    FROM posts 
+                    WHERE product_id = %s
+                    ORDER BY is_original DESC, likes + retweets DESC
+                """, (product_id,))
+                
+                posts = []
+                for row in cursor.fetchall():
+                    posts.append({
+                        'post_url': row[0],
+                        'content': row[1],
+                        'author': row[2],
+                        'post_date': row[3].isoformat() if row[3] else None,
+                        'likes': row[4],
+                        'retweets': row[5],
+                        'replies': row[6],
+                        'views': row[7],
+                        'is_original': row[8]
+                    })
+                
+                return jsonify({
+                    'product': product,
+                    'posts': posts
+                })
+                
+    except Exception as e:
+        return jsonify({'error': f'获取产品详情失败: {str(e)}'}), 500
+
+@app.route('/api/products/<int:product_id>/deep-search', methods=['POST'])
+def trigger_deep_search(product_id):
+    """触发产品深度搜索"""
+    try:
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                # 获取产品信息
+                cursor.execute("SELECT name FROM products WHERE id = %s", (product_id,))
+                product_row = cursor.fetchone()
+                
+                if not product_row:
+                    return jsonify({'error': '产品不存在'}), 404
+                
+                product_name = product_row[0]
+                
+                # 创建深度搜索任务
+                deep_search_prompt = f"""You are tasked with finding ALL Twitter posts related to the product "{product_name}".
+
+CRITICAL REQUIREMENTS:
+1. You MUST click on each individual tweet to get the specific post URL
+2. Extract real metrics from each individual post page
+3. Do NOT return search page URLs
+
+Search Strategy:
+1. Try multiple Nitter instances:
+   - https://nitter.privacyredirect.com/
+   - https://nitter.net/
+   - https://nitter.poast.org/
+   - https://nitter.1d4.us/
+
+2. Search queries to try:
+   - "{product_name}"
+   - "{product_name}" launch
+   - "{product_name}" review
+   - "{product_name}" demo
+   - "{product_name}" app
+   - "{product_name}" tool
+
+3. Time range: Last 6 months
+
+4. For EACH post found:
+   a) Click on the tweet to open the individual post page
+   b) Extract the specific post URL (like https://nitter.net/username/status/1234567890)
+   c) Get the actual metrics from that post page
+   d) Extract full content and author information
+
+5. Collect ALL posts mentioning this product, including:
+   - Original announcements
+   - User reviews and feedback
+   - Demos and tutorials
+   - News coverage
+   - Community discussions
+
+Return ONLY JSON format:
+{{
+  "posts": [
+    {{
+      "post_url": "https://nitter.net/username/status/1234567890",
+      "content": "Post text content",
+      "author": "username",
+      "post_date": "2024-01-01T12:00:00Z",
+      "likes": 10,
+      "retweets": 5,
+      "replies": 2,
+      "views": 100
+    }}
+  ]
+}}
+
+CRITICAL: Return ONLY the JSON object with SPECIFIC post URLs, not search page URLs."""
+                
+                # 创建Browser-use任务
+                task_result = create_browser_task(deep_search_prompt)
+                
+                if task_result and 'id' in task_result:
+                    # 标记产品正在进行深度搜索
+                    cursor.execute("""
+                        UPDATE products 
+                        SET deep_search_completed = FALSE 
+                        WHERE id = %s
+                    """, (product_id,))
+                    connection.commit()
+                    
+                    return jsonify({
+                        'success': True,
+                        'task_id': task_result['id'],
+                        'product_id': product_id,
+                        'message': '深度搜索任务已启动'
+                    })
+                else:
+                    return jsonify({'error': '启动深度搜索失败'}), 500
+                    
+    except Exception as e:
+        return jsonify({'error': f'启动深度搜索失败: {str(e)}'}), 500
+
+def process_deep_search_result(task_id, product_id, posts_data):
+    """处理深度搜索结果，保存推文并更新产品汇总数据"""
+    try:
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                posts = posts_data.get('posts', [])
+                
+                if not posts:
+                    # 标记深度搜索完成，即使没有找到新推文
+                    cursor.execute("""
+                        UPDATE products 
+                        SET deep_search_completed = TRUE 
+                        WHERE id = %s
+                    """, (product_id,))
+                    connection.commit()
+                    return
+                
+                total_likes = 0
+                total_retweets = 0
+                total_replies = 0
+                total_views = 0
+                new_posts_count = 0
+                
+                for post in posts:
+                    try:
+                        # 尝试插入新推文（如果不存在）
+                        cursor.execute("""
+                            INSERT IGNORE INTO posts (
+                                product_id, post_url, content, author, post_date,
+                                likes, retweets, replies, views, is_original
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (
+                            product_id,
+                            post.get('post_url', ''),
+                            post.get('content', ''),
+                            post.get('author', ''),
+                            post.get('post_date'),
+                            post.get('likes', 0),
+                            post.get('retweets', 0),
+                            post.get('replies', 0),
+                            post.get('views', 0),
+                            False  # 深度搜索找到的推文标记为非原始
+                        ))
+                        
+                        if cursor.rowcount > 0:  # 新插入的推文
+                            new_posts_count += 1
+                        
+                        # 累计社交数据
+                        total_likes += post.get('likes', 0)
+                        total_retweets += post.get('retweets', 0)
+                        total_replies += post.get('replies', 0)
+                        total_views += post.get('views', 0)
+                        
+                    except Exception as e:
+                        print(f"[DEBUG] 插入推文时出错: {e}")
+                        continue
+                
+                # 更新产品的汇总数据
+                cursor.execute("""
+                    UPDATE products 
+                    SET deep_search_completed = TRUE,
+                        total_likes = total_likes + %s,
+                        total_retweets = total_retweets + %s,
+                        total_replies = total_replies + %s,
+                        total_views = total_views + %s,
+                        total_posts = total_posts + %s
+                    WHERE id = %s
+                """, (
+                    total_likes, total_retweets, total_replies, 
+                    total_views, new_posts_count, product_id
+                ))
+                
+                connection.commit()
+                print(f"[DEBUG] 深度搜索完成，产品{product_id}新增{new_posts_count}条推文")
+                
+    except Exception as e:
+        print(f"[DEBUG] 处理深度搜索结果时出错: {e}")
+        # 即使出错也要标记深度搜索完成，避免状态卡住
+        try:
+            with get_db_connection() as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute("""
+                        UPDATE products 
+                        SET deep_search_completed = TRUE 
+                        WHERE id = %s
+                    """, (product_id,))
+                    connection.commit()
+        except:
+            pass
+
+@app.route('/api/deep-search/<task_id>/status', methods=['GET'])
+def deep_search_status(task_id):
+    """检查深度搜索任务状态"""
+    try:
+        product_id = request.args.get('product_id')
+        if not product_id:
+            return jsonify({'error': '缺少product_id参数'}), 400
+        
+        product_id = int(product_id)
+        status = get_task_status_from_api(task_id)
+        
+        print(f"[DEBUG] 深度搜索任务 {task_id} 状态: {status}")
+        
+        if status in ['finished', 'failed', 'stopped']:
+            if status == 'finished':
+                # 获取任务结果
+                result = get_task_detail_from_api(task_id)
+                
+                # 尝试解析推文数据
+                posts_data = parse_deep_search_result(result)
+                
+                # 处理深度搜索结果
+                process_deep_search_result(task_id, product_id, posts_data)
+                
+                return jsonify({
+                    'status': 'completed',
+                    'message': '深度搜索已完成',
+                    'posts_found': len(posts_data.get('posts', []))
+                })
+            else:
+                # 搜索失败，标记完成状态
+                with get_db_connection() as connection:
+                    with connection.cursor() as cursor:
+                        cursor.execute("""
+                            UPDATE products 
+                            SET deep_search_completed = TRUE 
+                            WHERE id = %s
+                        """, (product_id,))
+                        connection.commit()
+                
+                return jsonify({
+                    'status': 'failed',
+                    'message': '深度搜索失败'
+                })
+        else:
+            return jsonify({
+                'status': 'running',
+                'message': '深度搜索进行中'
+            })
+            
+    except Exception as e:
+        print(f"[DEBUG] 检查深度搜索状态时出错: {e}")
+        return jsonify({'error': f'检查状态失败: {str(e)}'}), 500
+
+def parse_deep_search_result(result):
+    """解析深度搜索结果"""
+    if not result:
+        return {'posts': []}
+    
+    print(f"[DEBUG] 开始解析深度搜索结果")
+    
+    # 尝试从结果中提取JSON数据
+    for field in ['result', 'output', 'data', 'response', 'content']:
+        if field in result and result[field]:
+            try:
+                if isinstance(result[field], str):
+                    # 尝试提取嵌入的JSON
+                    json_data = extract_json_from_text(result[field])
+                    if json_data and 'posts' in json_data:
+                        print(f"[DEBUG] 成功从深度搜索结果中提取{len(json_data['posts'])}条推文")
+                        return json_data
+                    
+                    # 尝试直接解析为JSON
+                    try:
+                        data = json.loads(result[field])
+                        if 'posts' in data:
+                            print(f"[DEBUG] 深度搜索结果是纯JSON格式")
+                            return data
+                    except:
+                        pass
+                        
+                elif isinstance(result[field], dict) and 'posts' in result[field]:
+                    print(f"[DEBUG] 深度搜索结果已经是dict格式")
+                    return result[field]
+            except Exception as e:
+                print(f"[DEBUG] 处理深度搜索字段 '{field}' 时出错: {e}")
+                continue
+    
+    print(f"[DEBUG] 未能解析出推文数据，返回空结果")
+    return {'posts': []}
 
 
 
@@ -446,14 +1294,31 @@ def get_task_detail_from_api(task_id):
         return {}
 
 def parse_task_result(result):
-    """解析任务结果，提取产品信息"""
+    """解析任务结果，提取产品信息，支持从失败任务中恢复数据"""
     if not result:
-        return None
+        return {'products': [], 'summary': '任务结果为空', 'note': '', 'total_found': 0}
     
     print(f"[DEBUG] 开始解析任务结果: {str(result)[:200]}...")
     
+    # 首先尝试从正常结果字段中提取数据
+    products_data = try_extract_from_result_fields(result)
+    if products_data and products_data.get('products'):
+        return products_data
+    
+    # 如果正常字段没有数据，尝试从执行日志中恢复数据
+    print(f"[DEBUG] 正常字段未找到数据，尝试从执行日志恢复...")
+    recovered_data = recover_data_from_logs(result)
+    if recovered_data and recovered_data.get('products'):
+        print(f"[DEBUG] 成功从执行日志恢复 {len(recovered_data['products'])} 个产品")
+        return recovered_data
+    
+    # 如果没有找到结构化数据，返回空结果
+    print(f"[DEBUG] 未能解析出产品数据，返回空结果")
+    return {'products': [], 'summary': '未能解析搜索结果', 'note': '', 'total_found': 0}
+
+def try_extract_from_result_fields(result):
+    """尝试从结果的各个字段中提取数据"""
     # 尝试从结果中提取JSON数据
-    # Browser-use API可能将结果放在不同的字段中
     for field in ['result', 'output', 'data', 'response', 'content']:
         if field in result and result[field]:
             print(f"[DEBUG] 检查字段 '{field}'")
@@ -466,7 +1331,6 @@ def parse_task_result(result):
                         # 同时提取文本描述
                         text_parts = result[field].split('{')[0].strip()
                         if text_parts:
-                            # 解析文本部分获取summary和note
                             text_data = parse_text_description(text_parts)
                             json_data.update(text_data)
                         return json_data
@@ -487,53 +1351,327 @@ def parse_task_result(result):
                 print(f"[DEBUG] 处理字段 '{field}' 时出错: {e}")
                 continue
     
-    # 如果没有找到JSON格式，尝试解析文本格式
-    text_result = extract_text_from_result(result)
-    if text_result:
-        print(f"[DEBUG] 尝试文本解析")
-        # 再次检查是否有嵌入的JSON
-        json_data = extract_json_from_text(text_result)
-        if json_data and 'products' in json_data:
-            print(f"[DEBUG] 从文本中找到JSON")
-            # 提取文本描述部分
-            text_parts = text_result.split('{')[0].strip()
-            if text_parts:
-                text_data = parse_text_description(text_parts)
-                json_data.update(text_data)
-            return json_data
-        
-        # 纯文本解析
-        print(f"[DEBUG] 使用纯文本解析")
-        parsed_data = parse_text_result(text_result)
-        if parsed_data and parsed_data.get('products'):
-            return parsed_data
-    
-    # 如果没有找到结构化数据，返回空结果而不是原始结果
-    print(f"[DEBUG] 未能解析出产品数据，返回空结果")
-    return {'products': [], 'summary': '未能解析搜索结果', 'note': '', 'total_found': 0}
-
-def extract_text_from_result(result):
-    """从结果中提取文本内容"""
-    if isinstance(result, str):
-        return result
-    
-    # 检查常见的文本字段
-    for field in ['result', 'output', 'data', 'response', 'content', 'message']:
-        if field in result and isinstance(result[field], str):
-            return result[field]
-    
     return None
 
-def extract_json_from_text(text):
-    """从文本中提取JSON对象"""
+def recover_data_from_logs(result):
+    """从执行日志中恢复数据"""
     try:
-        # 处理可能存在的 "json Copy" 或类似标记
+        # 获取执行日志
+        execution_logs = get_execution_logs(result)
+        if not execution_logs:
+            return None
+        
+        print(f"[DEBUG] 开始分析执行日志，共 {len(execution_logs)} 条记录")
+        
+        # 从日志中提取产品信息
+        products = []
+        current_product = None
+        
+        for log_entry in execution_logs:
+            # 尝试从每条日志中提取产品信息
+            extracted_products = extract_products_from_log_entry(log_entry)
+            if extracted_products:
+                products.extend(extracted_products)
+        
+        # 去重处理
+        unique_products = deduplicate_products(products)
+        
+        if unique_products:
+            return {
+                'products': unique_products,
+                'summary': f'从执行日志中恢复了 {len(unique_products)} 个产品',
+                'note': '数据来源：执行日志恢复',
+                'total_found': len(unique_products),
+                'recovered_from_logs': True
+            }
+        
+        return None
+        
+    except Exception as e:
+        print(f"[DEBUG] 从执行日志恢复数据时出错: {e}")
+        return None
+
+def get_execution_logs(result):
+    """获取执行日志"""
+    logs = []
+    
+    # 检查不同可能包含日志的字段
+    log_fields = ['logs', 'execution_logs', 'steps', 'actions', 'history', 'trace']
+    
+    for field in log_fields:
+        if field in result and result[field]:
+            if isinstance(result[field], list):
+                logs.extend(result[field])
+            elif isinstance(result[field], str):
+                # 尝试解析字符串格式的日志
+                try:
+                    parsed_logs = json.loads(result[field])
+                    if isinstance(parsed_logs, list):
+                        logs.extend(parsed_logs)
+                except:
+                    # 如果不是JSON，按行分割
+                    lines = result[field].split('\n')
+                    logs.extend([{'content': line.strip()} for line in lines if line.strip()])
+    
+    # 如果没有找到专门的日志字段，尝试从主要内容中提取
+    if not logs:
+        for field in ['result', 'output', 'content']:
+            if field in result and isinstance(result[field], str):
+                # 查找看起来像执行步骤的内容
+                content = result[field]
+                
+                # 查找步骤模式
+                step_patterns = [
+                    r'(\d+\.\s+.+?)(?=\d+\.|$)',  # 数字列表
+                    r'(Step \d+:.+?)(?=Step \d+:|$)',  # Step格式
+                    r'(•\s+.+?)(?=•\s+|$)',  # 项目符号
+                    r'(-\s+.+?)(?=-\s+|$)'   # 破折号列表
+                ]
+                
+                import re
+                for pattern in step_patterns:
+                    matches = re.findall(pattern, content, re.DOTALL | re.MULTILINE)
+                    if matches:
+                        logs.extend([{'content': match.strip()} for match in matches])
+                        break
+                
+                # 如果没有找到结构化步骤，按句子分割
+                if not logs:
+                    sentences = content.split('.')
+                    logs.extend([{'content': sentence.strip() + '.'} for sentence in sentences if len(sentence.strip()) > 10])
+    
+    return logs
+
+def extract_products_from_log_entry(log_entry):
+    """从单个日志条目中提取产品信息"""
+    products = []
+    
+    try:
+        # 获取日志内容
+        content = ""
+        if isinstance(log_entry, dict):
+            content = log_entry.get('content', '') or log_entry.get('message', '') or log_entry.get('text', '')
+        elif isinstance(log_entry, str):
+            content = log_entry
+        
+        if not content:
+            return products
+        
+        # 查找产品名称模式
+        product_patterns = [
+            r'(?:产品|Product|App|Tool)[:：]\s*([A-Za-z0-9\s\-\.]+)',
+            r'([A-Za-z][A-Za-z0-9\s\-\.]{2,30})\s*(?:is|was|launched|released)',
+            r'(?:found|discovered|identified)[:：]?\s*([A-Za-z][A-Za-z0-9\s\-\.]{2,30})',
+            r'([A-Z][A-Za-z0-9]{2,20}(?:\s+[A-Z][A-Za-z0-9]{2,20})*)\s*[-–—]\s*(.{10,100})',
+        ]
+        
+        import re
+        for pattern in product_patterns:
+            matches = re.findall(pattern, content, re.IGNORECASE)
+            for match in matches:
+                if isinstance(match, tuple):
+                    name = match[0].strip()
+                    description = match[1].strip() if len(match) > 1 else ""
+                else:
+                    name = match.strip()
+                    description = ""
+                
+                # 过滤掉明显不是产品名的内容
+                if is_valid_product_name(name):
+                    # 尝试从内容中提取更多信息
+                    category = extract_category_from_content(content)
+                    url = extract_url_from_content(content)
+                    metrics = extract_metrics_from_content(content)
+                    
+                    product = {
+                        'name': name,
+                        'description': description or extract_description_from_content(content, name),
+                        'url': url,
+                        'category': category,
+                        'metrics': metrics,
+                        'post_url': extract_post_url_from_content(content),
+                        'source': 'log_recovery'
+                    }
+                    products.append(product)
+        
+        # 查找JSON片段
+        json_match = re.search(r'\{[^{}]*"name"[^{}]*\}', content)
+        if json_match:
+            try:
+                json_data = json.loads(json_match.group())
+                if 'name' in json_data:
+                    products.append({
+                        'name': json_data.get('name', ''),
+                        'description': json_data.get('description', ''),
+                        'url': json_data.get('url', ''),
+                        'category': json_data.get('category', 'Other'),
+                        'metrics': json_data.get('metrics', {}),
+                        'post_url': json_data.get('post_url', ''),
+                        'source': 'log_recovery'
+                    })
+            except:
+                pass
+        
+    except Exception as e:
+        print(f"[DEBUG] 从日志条目提取产品信息时出错: {e}")
+    
+    return products
+
+def is_valid_product_name(name):
+    """检查是否是有效的产品名称"""
+    if not name or len(name) < 2 or len(name) > 50:
+        return False
+    
+    # 排除常见的非产品名称
+    invalid_patterns = [
+        r'^(the|a|an|and|or|but|in|on|at|to|for|of|with|by)$',
+        r'^(click|scroll|search|find|navigate|extract|update)$',
+        r'^(nitter|twitter|post|tweet|link|url|http)$',
+        r'^\d+$',  # 纯数字
+        r'^[^\w\s]+$',  # 只有标点符号
+    ]
+    
+    import re
+    for pattern in invalid_patterns:
+        if re.match(pattern, name, re.IGNORECASE):
+            return False
+    
+    return True
+
+def extract_category_from_content(content):
+    """从内容中提取分类"""
+    categories = {
+        'Text Generation': ['text', 'writing', 'content', 'article', 'blog'],
+        'Image Generation': ['image', 'photo', 'picture', 'visual', 'art', 'design'],
+        'Video Generation': ['video', 'movie', 'animation', 'clip'],
+        'Audio Generation': ['audio', 'music', 'sound', 'voice', 'speech'],
+        'Productivity': ['productivity', 'task', 'workflow', 'automation', 'efficiency'],
+        'Development': ['code', 'development', 'programming', 'developer', 'API'],
+        'Other': []
+    }
+    
+    content_lower = content.lower()
+    for category, keywords in categories.items():
+        for keyword in keywords:
+            if keyword in content_lower:
+                return category
+    
+    return 'Other'
+
+def extract_url_from_content(content):
+    """从内容中提取URL"""
+    import re
+    url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+[^\s<>"{}|\\^`\[\].,;:!?]'
+    matches = re.findall(url_pattern, content)
+    
+    # 过滤掉nitter链接，返回产品官网
+    for url in matches:
+        if 'nitter' not in url.lower() and 'twitter' not in url.lower():
+            return url
+    
+    return ''
+
+def extract_metrics_from_content(content):
+    """从内容中提取社交媒体指标"""
+    metrics = {'likes': 0, 'retweets': 0, 'replies': 0, 'views': 0}
+    
+    import re
+    # 查找数字模式
+    patterns = {
+        'likes': [r'(\d+)\s*(?:like|点赞)', r'❤️\s*(\d+)', r'♥\s*(\d+)'],
+        'retweets': [r'(\d+)\s*(?:retweet|转发)', r'🔄\s*(\d+)', r'RT\s*(\d+)'],
+        'replies': [r'(\d+)\s*(?:repl|回复)', r'💬\s*(\d+)'],
+        'views': [r'(\d+)\s*(?:view|浏览)', r'👁\s*(\d+)', r'(\d+)\s*views?']
+    }
+    
+    for metric, metric_patterns in patterns.items():
+        for pattern in metric_patterns:
+            matches = re.findall(pattern, content, re.IGNORECASE)
+            if matches:
+                try:
+                    metrics[metric] = int(matches[0])
+                    break
+                except:
+                    continue
+    
+    return metrics
+
+def extract_description_from_content(content, product_name):
+    """从内容中提取产品描述"""
+    # 查找产品名称附近的描述文本
+    import re
+    
+    # 在产品名称前后查找描述
+    pattern = rf'{re.escape(product_name)}\s*[-–—:：]\s*([^.!?]{10,100})'
+    match = re.search(pattern, content, re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
+    
+    # 查找包含产品名称的句子
+    sentences = re.split(r'[.!?]+', content)
+    for sentence in sentences:
+        if product_name.lower() in sentence.lower():
+            # 清理句子并返回
+            cleaned = re.sub(r'\s+', ' ', sentence.strip())
+            if 10 <= len(cleaned) <= 200:
+                return cleaned
+    
+    return ''
+
+def extract_post_url_from_content(content):
+    """从内容中提取推文URL"""
+    import re
+    # 查找nitter链接
+    nitter_pattern = r'https?://nitter[^/]*\.[^/]+/[^/]+/status/\d+'
+    matches = re.findall(nitter_pattern, content)
+    return matches[0] if matches else ''
+
+def deduplicate_products(products):
+    """去重产品列表"""
+    seen_names = set()
+    unique_products = []
+    
+    for product in products:
+        name = product.get('name', '').strip().lower()
+        if name and name not in seen_names:
+            seen_names.add(name)
+            unique_products.append(product)
+    
+    return unique_products
+
+def extract_json_from_text(text):
+    """从文本中提取JSON对象，支持中英文混合内容"""
+    try:
+        # 处理可能存在的标记
         text = text.replace('json\nCopy\n', '').replace('json Copy\n', '').replace('```json', '').replace('```', '')
         
-        # 查找JSON开始和结束的位置
+        # 多种方式查找JSON
+        json_patterns = [
+            # 标准JSON块
+            r'\{[^{}]*"products"[^{}]*\[[^\]]*\][^{}]*\}',
+            # 嵌套JSON
+            r'\{.*?"products"\s*:\s*\[.*?\].*?\}',
+            # 简单匹配
+            r'\{.*?"products".*?\}',
+        ]
+        
+        import re
+        for pattern in json_patterns:
+            matches = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
+            for match in matches:
+                try:
+                    parsed_json = json.loads(match)
+                    if 'products' in parsed_json:
+                        print(f"[DEBUG] 成功解析JSON，产品数量: {len(parsed_json.get('products', []))}")
+                        return parsed_json
+                except:
+                    continue
+        
+        # 如果正则匹配失败，尝试手动查找
         start_idx = text.find('{')
         if start_idx == -1:
-            return None
+            # 尝试查找中文结果格式
+            return parse_chinese_result_format(text)
             
         # 从开始位置查找匹配的结束括号
         brace_count = 0
@@ -550,12 +1688,73 @@ def extract_json_from_text(text):
         
         if end_idx > start_idx:
             json_str = text[start_idx:end_idx]
-            print(f"[DEBUG] 提取的JSON字符串: {json_str[:100]}...")
+            print(f"[DEBUG] 提取的JSON字符串: {json_str[:200]}...")
             parsed_json = json.loads(json_str)
             print(f"[DEBUG] 成功解析JSON，产品数量: {len(parsed_json.get('products', []))}")
             return parsed_json
+            
     except Exception as e:
         print(f"[DEBUG] 提取JSON失败: {e}")
+        # 如果JSON解析失败，尝试解析中文格式
+        return parse_chinese_result_format(text)
+    
+    return None
+
+def parse_chinese_result_format(text):
+    """解析中文格式的结果"""
+    try:
+        print(f"[DEBUG] 尝试解析中文格式结果...")
+        
+        # 查找产品信息的模式
+        import re
+        
+        # 查找产品名称
+        name_patterns = [
+            r'"name":\s*"([^"]+)"',
+            r'产品名称[：:]\s*([^\n,]+)',
+            r'name[：:]\s*([^\n,]+)',
+        ]
+        
+        products = []
+        
+        # 尝试提取结构化信息
+        for pattern in name_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            for match in matches:
+                product_name = match.strip()
+                if product_name and len(product_name) > 1:
+                    # 查找对应的描述
+                    desc_pattern = rf'{re.escape(product_name)}[^{{]*?"description":\s*"([^"]+)"'
+                    desc_match = re.search(desc_pattern, text, re.IGNORECASE | re.DOTALL)
+                    description = desc_match.group(1) if desc_match else ""
+                    
+                    # 查找URL
+                    url_pattern = rf'{re.escape(product_name)}[^{{]*?"url":\s*"([^"]+)"'
+                    url_match = re.search(url_pattern, text, re.IGNORECASE | re.DOTALL)
+                    url = url_match.group(1) if url_match else ""
+                    
+                    products.append({
+                        'name': product_name,
+                        'description': description,
+                        'url': url,
+                        'category': 'Productivity',  # 默认分类
+                        'discovery_post': {
+                            'post_url': '',
+                            'metrics': {'likes': 0, 'retweets': 0, 'replies': 0, 'views': 0}
+                        },
+                        'all_posts': []
+                    })
+        
+        if products:
+            print(f"[DEBUG] 从中文格式解析出 {len(products)} 个产品")
+            return {
+                'products': products,
+                'summary': f'从中文格式结果中解析出 {len(products)} 个产品',
+                'total_found': len(products)
+            }
+            
+    except Exception as e:
+        print(f"[DEBUG] 解析中文格式失败: {e}")
     
     return None
 
@@ -601,125 +1800,50 @@ def parse_text_description(text):
         'total_found': total_found
     }
 
-def parse_text_result(text):
-    """解析文本格式的搜索结果"""
-    products = []
-    summary = ""
-    note = ""
+def extract_intermediate_progress(result):
+    """从运行中的任务中提取中间进度数据"""
+    if not result:
+        return None
     
     try:
-        # 提取搜索总结（第一段文字）
-        lines = text.strip().split('\n')
-        summary_lines = []
-        product_lines = []
-        note_lines = []
+        # 尝试从结果中提取部分完成的数据
+        # 这可能包括已经收集到的产品信息，即使任务还在运行
         
-        # 分段解析
-        current_section = "summary"
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-                
-            if "Products Found:" in line:
-                current_section = "products"
-                continue
-            elif line.startswith("All products are") or line.startswith("The search was"):
-                current_section = "note"
-                
-            if current_section == "summary":
-                summary_lines.append(line)
-            elif current_section == "products":
-                product_lines.append(line)
-            elif current_section == "note":
-                note_lines.append(line)
+        # 检查是否有部分结果
+        partial_data = None
         
-        # 构建总结
-        summary = " ".join(summary_lines)
-        note = " ".join(note_lines)
-        
-        # 解析产品信息
-        for line in product_lines:
-            line = line.strip()
-            if not line:
-                continue
-                
-            # 检查是否是产品描述行（包含 - 和分类）
-            if ' - ' in line and ('(' in line and ')' in line):
-                # 解析格式: "产品名 - 描述 (分类)"
-                parts = line.split(' - ', 1)
-                if len(parts) == 2:
-                    name = parts[0].strip()
-                    desc_and_category = parts[1].strip()
+        # 从各种可能的字段中查找部分数据
+        for field in ['partial_result', 'intermediate_data', 'current_state', 'progress']:
+            if field in result and result[field]:
+                try:
+                    if isinstance(result[field], str):
+                        partial_data = extract_json_from_text(result[field])
+                    elif isinstance(result[field], dict):
+                        partial_data = result[field]
                     
-                    # 提取分类（最后的括号内容）
-                    if '(' in desc_and_category and ')' in desc_and_category:
-                        last_paren = desc_and_category.rfind('(')
-                        category = desc_and_category[last_paren+1:].replace(')', '').strip()
-                        description = desc_and_category[:last_paren].strip()
-                    else:
-                        description = desc_and_category
-                        category = 'Other'
-                    
-                    product = {
-                        'name': name,
-                        'description': description,
-                        'url': '',  # 暂时为空，可以后续补充
-                        'category': category,
-                        'metrics': {'likes': 0, 'retweets': 0, 'replies': 0},
-                        'post_url': ''
-                    }
-                    products.append(product)
+                    if partial_data and 'products' in partial_data:
+                        break
+                except:
+                    continue
         
-        # 如果没有找到明确的分段，尝试其他解析方式
-        if not products and "Products Found:" in text:
-            product_section = text.split("Products Found:")[1]
-            if "All products are" in product_section:
-                product_part = product_section.split("All products are")[0]
-                note = "All products are" + product_section.split("All products are")[1]
-            else:
-                product_part = product_section
-                
-            lines = product_part.strip().split('\n')
-            
-            for line in lines:
-                line = line.strip()
-                if line and ' - ' in line:
-                    parts = line.split(' - ', 1)
-                    if len(parts) == 2:
-                        name = parts[0].strip()
-                        desc = parts[1].strip()
-                        
-                        # 提取分类
-                        category = 'Other'
-                        if '(' in desc and ')' in desc:
-                            last_paren = desc.rfind('(')
-                            category = desc[last_paren+1:].replace(')', '').strip()
-                            desc = desc[:last_paren].strip()
-                        
-                        product = {
-                            'name': name,
-                            'description': desc,
-                            'url': '',
-                            'category': category,
-                            'metrics': {'likes': 0, 'retweets': 0, 'replies': 0},
-                            'post_url': ''
-                        }
-                        products.append(product)
+        # 如果没有找到专门的中间数据字段，尝试从主要内容中提取
+        if not partial_data:
+            # 尝试从执行日志中提取当前已发现的产品
+            logs_data = recover_data_from_logs(result)
+            if logs_data and logs_data.get('products'):
+                partial_data = {
+                    'products': logs_data['products'],
+                    'summary': f'中间进度：已发现{len(logs_data["products"])}个产品',
+                    'is_intermediate': True
+                }
         
-        result = {
-            'products': products,
-            'summary': summary,
-            'note': note,
-            'total_found': len(products)
-        }
-        
-        print(f"[DEBUG] 解析到 {len(products)} 个产品，总结: {summary[:50]}...")
-        return result
+        return partial_data
         
     except Exception as e:
-        print(f"[DEBUG] 解析文本结果失败: {e}")
-        return {'products': [], 'summary': text, 'note': '', 'total_found': 0}
+        print(f"[DEBUG] 提取中间进度数据时出错: {e}")
+        return None
+
+
 
 if __name__ == '__main__':
     # 初始化数据库

@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const taskStatus = document.getElementById('task-status');
     const statusText = document.querySelector('.status-text');
     const taskControls = document.getElementById('task-controls');
-    const checkResultBtn = document.getElementById('check-result-btn');
+
     const refreshPreviewBtn = document.getElementById('refresh-preview-btn');
     const taskIdDisplay = document.getElementById('task-id-display');
     const livePreview = document.getElementById('live-preview');
@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 事件监听器
     searchForm.addEventListener('submit', handleSearch);
     previewPromptBtn.addEventListener('click', showPromptPreview);
-    checkResultBtn.addEventListener('click', manualCheckResult);
+
     refreshPreviewBtn.addEventListener('click', refreshPreview);
     modalClose.addEventListener('click', closeModal);
     promptModal.addEventListener('click', function(e) {
@@ -75,9 +75,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function initializeTagInputs() {
         const tagInputs = [
             { input: 'keyword-input', container: 'keywords-tags' },
-            { input: 'modifier-input', container: 'modifiers-tags' },
-            { input: 'exclude-company-input', container: 'exclude-companies-tags' },
-            { input: 'exclude-content-input', container: 'exclude-content-tags' }
+            { input: 'exclude-company-input', container: 'exclude-companies-tags' }
         ];
 
         tagInputs.forEach(({ input, container }) => {
@@ -135,9 +133,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const endDate = formData.get('endDate');
         const resultLimit = formData.get('resultLimit');
         const keywords = getTagValues('keywords-tags');
-        const modifiers = getTagValues('modifiers-tags');
         const excludeCompanies = getTagValues('exclude-companies-tags');
-        const excludeContent = getTagValues('exclude-content-tags');
         const categories = Array.from(document.querySelectorAll('input[name="categories"]:checked'))
             .map(cb => cb.value);
 
@@ -145,9 +141,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const keywordStr = keywords.length > 0 ? keywords.join(' OR ') : 'AI app';
         const excludeStr = excludeCompanies.length > 0 ? excludeCompanies.map(c => `-from:${c}`).join(' ') : '-from:Google -from:Microsoft -from:OpenAI';
         
-        let prompt = `You are an AI Product Discovery Expert. Find at least ${resultLimit} AI-related products from Twitter mirror sites.
+        let prompt = `You are an AI Product Discovery Expert. Perform a TWO-STAGE search to comprehensively discover AI products and their Twitter presence.
 
-IMPORTANT: You MUST return at least ${resultLimit} AI products in JSON format. Follow these flexible strategies:
+STAGE 1: PRODUCT DISCOVERY
+Find at least ${resultLimit} AI-related products from Twitter mirror sites:
 
 1. Try multiple Nitter instances:
    - https://nitter.privacyredirect.com/
@@ -155,36 +152,69 @@ IMPORTANT: You MUST return at least ${resultLimit} AI products in JSON format. F
    - https://nitter.poast.org/
    - https://nitter.1d4.us/
 
-2. Search Flexibility:
-   - Start with: ${startDate} to ${endDate}
-   - If no results, expand date range
-   - Try multiple queries:
-     * "${keywordStr}" ${excludeStr}
-     * "new AI" OR "AI launch" OR "AI startup"
-     * "AI agent" OR "AI tool" OR "AI app"
+2. Search Strategy:
+   - Date range: ${startDate} to ${endDate}
+   - Primary queries: "${keywordStr}" ${excludeStr}
+   - Backup queries: "new AI" OR "AI launch" OR "AI startup"
+   - Additional: "AI agent" OR "AI tool" OR "AI app"
 
-3. Result Requirements:
-   - MUST find at least ${resultLimit} AI products
-   - Include ANY AI products if exact matches aren't found
-   - Fill missing fields with empty strings
+3. For EACH product found, extract:
+   - Product name, description, official website, category
+   - The discovery post URL and metrics
 
-4. Output Format (MANDATORY JSON ONLY):
+STAGE 2: DEEP PRODUCT SEARCH
+For EACH product discovered, perform additional searches:
+
+1. Search queries for each product:
+   - "[Product Name]"
+   - "[Product Name] launch"
+   - "[Product Name] review"
+   - "[Product Name] demo"
+   - "[Product Name] AI"
+
+2. Collect ALL related posts for each product (aim for 3-10 posts per product):
+   - Original announcements
+   - User reviews and feedback
+   - Demos and tutorials
+   - News coverage
+   - Community discussions
+
+3. For EACH post:
+   a) Click individual tweet to get specific URL
+   b) Extract exact URL (https://nitter.net/username/status/NUMBERS)
+   c) Get real metrics from individual post page
+   d) Extract content, author, date
+
+OUTPUT FORMAT (MANDATORY JSON ONLY):
 {
   "products": [
     {
       "name": "Product Name",
-      "description": "Brief description",
+      "description": "Brief description from discovery",
       "url": "https://productwebsite.com",
       "category": "Productivity",
-      "metrics": {"likes": 0, "retweets": 0, "replies": 0},
-      "post_url": "https://nitter.net/username/status/123456"
+      "discovery_post": {
+        "post_url": "https://nitter.net/user/status/123",
+        "metrics": {"likes": 5, "retweets": 2, "replies": 1, "views": 50}
+      },
+      "all_posts": [
+        {
+          "post_url": "https://nitter.net/user1/status/123",
+          "content": "Post content",
+          "author": "username",
+          "post_date": "2024-01-01T12:00:00Z",
+          "metrics": {"likes": 10, "retweets": 5, "replies": 2, "views": 100}
+        }
+      ]
     }
   ]
 }
 
-URL GUIDELINES:
-- "url": Product's official website (NOT Nitter link)
-- "post_url": The Nitter post where you found this product
+REQUIREMENTS:
+- MUST find at least ${resultLimit} products
+- Each product MUST have multiple posts (3-10 posts per product)
+- All URLs must be specific individual posts, NOT search pages
+- Extract real metrics from individual post pages
 - If no official website, set "url" to ""
 
 Categories: ${categories.length > 0 ? categories.join(', ') : "'Text Generation', 'Image Generation', 'Audio Generation', 'Video Generation', 'Productivity', 'Development', 'Other'"}
@@ -486,13 +516,23 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         e.preventDefault();
         
         const prompt = generatePrompt();
+        
+        // 收集搜索参数
+        const formData = new FormData(searchForm);
+        const searchParams = {
+            keywords: getTagValues('keywords-tags'),
+            start_date: formData.get('startDate') || '2025-06-01',
+            end_date: formData.get('endDate') || '2025-07-01',
+            categories: Array.from(document.querySelectorAll('input[name="categories"]:checked'))
+                .map(cb => cb.value)
+        };
 
         // 重置UI状态
         resetUI();
         
         // 显示加载状态
         searchBtn.disabled = true;
-        searchBtn.textContent = '搜索中...';
+        searchBtn.textContent = '发现中...';
         taskStatus.classList.remove('hidden');
         loading.classList.remove('hidden');
 
@@ -503,13 +543,23 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ prompt })
+                body: JSON.stringify({ 
+                    prompt,
+                    search_params: searchParams
+                })
             });
 
             const data = await response.json();
 
             if (data.error) {
                 throw new Error(data.error);
+            }
+
+            // 检查是否需要重定向到结果页面
+            if (data.redirect_to_results) {
+                alert(data.message);
+                window.location.href = '/results';
+                return;
             }
 
             currentTaskId = data.task_id;
@@ -536,33 +586,24 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
     // 显示实时预览
     function showLivePreview(liveUrl) {
         console.log('[DEBUG] showLivePreview called with:', liveUrl);
+        console.log('[DEBUG] livePreview element:', livePreview);
+        console.log('[DEBUG] previewIframe element:', previewIframe);
+        console.log('[DEBUG] previewLink element:', previewLink);
+        
+        if (!livePreview || !previewIframe || !previewLink) {
+            console.error('[ERROR] 实时预览元素获取失败!');
+            return;
+        }
+        
         livePreview.classList.remove('hidden');
         previewIframe.src = liveUrl;
         previewLink.href = liveUrl;
         console.log('[DEBUG] iframe src set to:', previewIframe.src);
         console.log('[DEBUG] live preview should now be visible');
+        console.log('[DEBUG] livePreview classes:', livePreview.className);
     }
 
-    // 手动检查结果
-    async function manualCheckResult() {
-        if (!currentTaskId) {
-            alert('没有正在执行的任务');
-            return;
-        }
 
-        checkResultBtn.disabled = true;
-        checkResultBtn.textContent = '检查中...';
-
-        try {
-            await checkTaskStatus();
-        } catch (error) {
-            console.error('手动检查结果失败:', error);
-            alert('检查结果失败: ' + error.message);
-        } finally {
-            checkResultBtn.disabled = false;
-            checkResultBtn.textContent = '手动检查结果';
-        }
-    }
 
     // 刷新预览
     function refreshPreview() {
@@ -609,25 +650,47 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             const data = await response.json();
             
             console.log('[DEBUG] 任务状态响应:', data);
+            console.log('[DEBUG] 当前iframe src:', previewIframe.src);
+            console.log('[DEBUG] 是否有live_url:', !!data.live_url);
 
-            updateStatusUI(data.status);
+            updateStatusUI(data.status, data);
 
-            // 如果返回了live_url但还没有显示，显示它
-            if (data.live_url && (!previewIframe.src || previewIframe.src === 'about:blank' || previewIframe.src === '')) {
+            // 如果返回了live_url，显示它
+            if (data.live_url) {
                 console.log('[DEBUG] 显示实时预览:', data.live_url);
+                console.log('[DEBUG] 当前iframe src:', previewIframe.src);
+                
+                // 无论如何都显示live_url，因为它可能是最新的
                 showLivePreview(data.live_url);
+            } else {
+                console.log('[DEBUG] 没有live_url返回');
             }
 
-            // 任务完成
-            if (['finished', 'failed', 'stopped'].includes(data.status)) {
+            // 显示中间进度（如果有）
+            if (data.intermediate_progress && data.status === 'running') {
+                displayIntermediateProgress(data.intermediate_progress);
+            }
+
+            // 任务完成、失败或部分成功
+            if (['finished', 'failed', 'stopped', 'partial_success'].includes(data.status)) {
                 clearInterval(statusCheckInterval);
                 loading.classList.add('hidden');
 
-                if (data.status === 'finished' && data.result) {
-                    displayResults(data.result);
+                if ((data.status === 'finished' || data.status === 'partial_success') && data.result) {
+                    displayResults(data.result, data.status === 'partial_success', data.recovered_from_logs);
+                    
+                    // 如果是部分成功，显示额外的提示信息
+                    if (data.status === 'partial_success') {
+                        showPartialSuccessMessage(data.message || '任务中断，但成功恢复了部分数据');
+                    }
                 } else if (data.status === 'failed') {
-                    statusText.textContent = '任务失败';
-                    alert('搜索任务失败，请重试');
+                    // 即使失败，也检查是否有恢复的数据
+                    if (data.result && data.result.products && data.result.products.length > 0) {
+                        displayResults(data.result, true, data.recovered_from_logs);
+                        showPartialSuccessMessage('任务失败，但成功从执行日志中恢复了部分数据');
+                    } else {
+                        statusText.textContent = '任务失败';
+                    }
                 }
 
                 searchBtn.disabled = false;
@@ -639,14 +702,93 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         }
     }
 
+    // 显示中间进度
+    function displayIntermediateProgress(progressData) {
+        if (!progressData || !progressData.products || progressData.products.length === 0) {
+            return;
+        }
+
+        // 创建或更新中间进度显示区域
+        let progressSection = document.getElementById('intermediate-progress');
+        if (!progressSection) {
+            progressSection = document.createElement('div');
+            progressSection.id = 'intermediate-progress';
+            progressSection.className = 'intermediate-progress';
+            progressSection.innerHTML = `
+                <div class="progress-header">
+                    <h3>🔄 执行进度</h3>
+                    <p class="progress-summary"></p>
+                </div>
+                <div class="progress-products"></div>
+            `;
+            
+            // 插入到结果区域之前
+            const resultsSection = document.getElementById('results');
+            resultsSection.parentNode.insertBefore(progressSection, resultsSection);
+        }
+
+        const progressSummary = progressSection.querySelector('.progress-summary');
+        const progressProducts = progressSection.querySelector('.progress-products');
+
+        progressSummary.textContent = progressData.summary || `已发现 ${progressData.products.length} 个产品...`;
+
+        // 显示已发现的产品
+        progressProducts.innerHTML = '';
+        progressData.products.forEach(product => {
+            const productCard = document.createElement('div');
+            productCard.className = 'product-card intermediate';
+            productCard.innerHTML = `
+                <div class="product-header">
+                    <h4 class="product-name">${product.name}</h4>
+                    <span class="product-category">${product.category}</span>
+                </div>
+                <p class="product-description">${product.description || '正在收集更多信息...'}</p>
+                <div class="product-source">
+                    <span class="source-tag">进行中</span>
+                </div>
+            `;
+            progressProducts.appendChild(productCard);
+        });
+
+        progressSection.classList.remove('hidden');
+    }
+
+    // 显示部分成功消息
+    function showPartialSuccessMessage(message) {
+        // 创建提示消息
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-warning';
+        alertDiv.innerHTML = `
+            <div class="alert-content">
+                <div class="alert-icon">⚠️</div>
+                <div class="alert-text">
+                    <strong>部分成功</strong>
+                    <p>${message}</p>
+                </div>
+            </div>
+        `;
+
+        // 插入到结果区域的顶部
+        const resultsSection = document.getElementById('results');
+        resultsSection.insertBefore(alertDiv, resultsSection.firstChild);
+
+        // 5秒后自动隐藏
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.remove();
+            }
+        }, 8000);
+    }
+
     // 更新状态UI
-    function updateStatusUI(status) {
+    function updateStatusUI(status, data = {}) {
         const statusMap = {
             'created': '任务已创建，正在初始化浏览器...',
             'running': '🔍 AI正在搜索中... 预计需要10分钟左右',
             'finished': '✅ 搜索完成！',
             'failed': '❌ 任务失败',
-            'stopped': '⏹️ 任务已停止'
+            'stopped': '⏹️ 任务已停止',
+            'partial_success': '⚠️ 任务中断，但成功恢复了数据'
         };
 
         statusText.textContent = statusMap[status] || status;
@@ -663,15 +805,29 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
                 runningHint.style.marginTop = '0.5rem';
                 statusText.parentNode.insertBefore(runningHint, statusText.nextSibling);
             }
-            runningHint.textContent = '💡 提示：AI正在执行多个搜索查询并分析内容，您可以在下方查看实时执行过程。如果预览消失，请点击"刷新预览"按钮。';
+            
+            let hintText = '💡 提示：AI正在执行多个搜索查询并分析内容，您可以在下方查看实时执行过程。';
+            
+            // 如果有中间进度，更新提示文本
+            if (data.intermediate_progress && data.intermediate_progress.products) {
+                hintText += `已发现 ${data.intermediate_progress.products.length} 个产品。`;
+            }
+            
+            runningHint.textContent = hintText;
         }
     }
 
     // 显示搜索结果
-    function displayResults(data) {
+    function displayResults(data, isPartialSuccess = false, isRecovered = false) {
         if (!data) {
             resultsSection.classList.add('hidden');
             return;
+        }
+
+        // 隐藏中间进度显示
+        const progressSection = document.getElementById('intermediate-progress');
+        if (progressSection) {
+            progressSection.classList.add('hidden');
         }
 
         // 清空现有结果
@@ -683,7 +839,12 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             const summaryText = searchSummary.querySelector('.summary-text');
             const totalCount = searchSummary.querySelector('.total-count');
             
-            summaryText.textContent = data.summary;
+            let summaryContent = data.summary;
+            if (isRecovered) {
+                summaryContent += ' (数据来源：执行日志恢复)';
+            }
+            
+            summaryText.textContent = summaryContent;
             if (data.total_found !== undefined) {
                 totalCount.textContent = `共找到 ${data.total_found} 个AI产品`;
             } else if (data.products && data.products.length > 0) {
@@ -691,46 +852,40 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             } else {
                 totalCount.textContent = `未找到符合条件的AI产品`;
             }
+            
+            // 如果是恢复的数据，添加特殊样式
+            if (isRecovered) {
+                searchSummary.classList.add('recovered-data');
+            }
+            
             searchSummary.classList.remove('hidden');
         } else {
             searchSummary.classList.add('hidden');
         }
 
-        // 更新统计信息
-        const count = data.products ? data.products.length : 0;
-        productCount.textContent = `找到 ${count} 个产品`;
-        searchNote.textContent = data.note || '';
-
-        // 显示搜索说明
-        const searchNoteSection = document.getElementById('search-note-section');
-        if (data.note) {
-            const noteText = searchNoteSection.querySelector('.note-text');
-            noteText.textContent = data.note;
-            searchNoteSection.classList.remove('hidden');
-        } else {
-            searchNoteSection.classList.add('hidden');
-        }
-
-        // 显示结果区域
-        resultsSection.classList.remove('hidden');
-
-        // 渲染产品卡片
+        // 显示产品列表
         if (data.products && data.products.length > 0) {
             data.products.forEach(product => {
-                const card = createProductCard(product);
-                productsGrid.appendChild(card);
+                const productCard = createProductCard(product, isRecovered);
+                productsGrid.appendChild(productCard);
             });
+            resultsSection.classList.remove('hidden');
         } else {
-            // 显示无结果提示
-            productsGrid.innerHTML = '<div class="no-results">未找到符合条件的AI产品，请尝试调整搜索条件或时间范围。</div>';
+            resultsSection.classList.add('hidden');
         }
 
-        // 滚动到结果区域
-        resultsSection.scrollIntoView({ behavior: 'smooth' });
+        // 显示备注
+        if (data.note) {
+            const noteElement = document.getElementById('search-note');
+            if (noteElement) {
+                noteElement.textContent = data.note;
+                noteElement.classList.remove('hidden');
+            }
+        }
     }
 
     // 创建产品卡片
-    function createProductCard(product) {
+    function createProductCard(product, isRecovered = false) {
         const template = document.getElementById('product-card-template');
         const card = template.content.cloneNode(true);
 
@@ -769,6 +924,11 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             postUrl.addEventListener('click', (e) => e.preventDefault());
         }
 
+        // 如果是恢复的数据，添加特殊样式
+        if (isRecovered) {
+            card.querySelector('.product-source').innerHTML = '<span class="source-tag recovered">从日志恢复</span>';
+        }
+
         return card;
     }
 
@@ -783,6 +943,14 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         previewIframe.src = '';
         taskIdDisplay.textContent = '';
         currentTaskId = null;
+        
+
+        
+        // 清理中间进度显示
+        const progressSection = document.getElementById('intermediate-progress');
+        if (progressSection) {
+            progressSection.remove();
+        }
         
         if (statusCheckInterval) {
             clearInterval(statusCheckInterval);
