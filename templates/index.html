@@ -151,9 +151,32 @@
                     </div>
                 </form>
 
+                <!-- 搜索结果 -->
+                <div id="results" class="results-section hidden">
+                    <h2>Search Results</h2>
+                    
+                    <!-- 搜索总结 -->
+                    <div id="search-summary" class="search-summary hidden">
+                        <h3>📊 Search Summary</h3>
+                        <p class="summary-text"></p>
+                        <div class="total-count"></div>
+                    </div>
+                    
+                    <!-- 移除重复的产品计数显示，因为搜索总结部分已经包含了 -->
+                    <div id="products-grid" class="products-grid">
+                        <!-- 产品卡片将动态插入这里 -->
+                    </div>
+                    
+                    <!-- 搜索说明 -->
+                    <div id="search-note-section" class="search-note-section hidden">
+                        <h4>ℹ️ Search Instructions</h4>
+                        <p class="note-text"></p>
+                    </div>
+                </div>
+
                 <!-- 任务状态和实时预览 -->
                 <div id="task-status" class="task-status hidden">
-                    <h3>Task Executing</h3>
+                    <h3>Browser-Use Complete Results</h3>
                     <p class="status-text">Preparing...</p>
                     
                     <!-- 任务控制按钮 -->
@@ -183,29 +206,6 @@
                     <!-- <div class="progress-bar">
                         <div class="progress-fill"></div>
                     </div> -->
-                </div>
-            </section>
-
-            <!-- 搜索结果 -->
-            <section id="results" class="results-section hidden">
-                <h2>Search Results</h2>
-                
-                <!-- 搜索总结 -->
-                <div id="search-summary" class="search-summary hidden">
-                    <h3>📊 Search Summary</h3>
-                    <p class="summary-text"></p>
-                    <div class="total-count"></div>
-                </div>
-                
-                <!-- 移除重复的产品计数显示，因为搜索总结部分已经包含了 -->
-                <div id="products-grid" class="products-grid">
-                    <!-- 产品卡片将动态插入这里 -->
-                </div>
-                
-                <!-- 搜索说明 -->
-                <div id="search-note-section" class="search-note-section hidden">
-                    <h4>ℹ️ Search Instructions</h4>
-                    <p class="note-text"></p>
                 </div>
             </section>
         </main>
