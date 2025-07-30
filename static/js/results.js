@@ -1,6 +1,6 @@
-// 结果页面JavaScript逻辑
+// Results page JavaScript logic
 document.addEventListener('DOMContentLoaded', function() {
-    // DOM元素
+    // DOM elements
     const searchList = document.getElementById('search-list');
     const productDetail = document.getElementById('product-detail');
     const statusFilter = document.getElementById('status-filter');
@@ -9,17 +9,29 @@ document.addEventListener('DOMContentLoaded', function() {
     const refreshPostsBtn = document.getElementById('refresh-posts');
 
     let currentProductId = null;
+    let autoRefreshInterval = null;
 
-    // 初始化
+    // Initialize
     loadSearchRecords();
+    
+    // Check if there's a product ID in URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const productId = urlParams.get('product');
+    if (productId) {
+        // Direct show product detail
+        showProductDetail(parseInt(productId));
+    } else {
+        // Start auto refresh (every 30 seconds)
+        startAutoRefresh();
+    }
 
-    // 事件监听器
+    // Event listeners
     statusFilter.addEventListener('change', loadSearchRecords);
     keywordFilter.addEventListener('input', debounce(loadSearchRecords, 500));
     backToListBtn.addEventListener('click', showSearchList);
     refreshPostsBtn.addEventListener('click', refreshProductPosts);
 
-    // 防抖函数
+    // Debounce function
     function debounce(func, wait) {
         let timeout;
         return function executedFunction(...args) {
@@ -32,7 +44,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
 
-    // 加载搜索记录
+    // Load search records
     async function loadSearchRecords() {
         try {
             const params = new URLSearchParams();
@@ -45,19 +57,19 @@ document.addEventListener('DOMContentLoaded', function() {
             if (response.ok) {
                 renderSearchRecords(data.records);
             } else {
-                console.error('加载搜索记录失败:', data.error);
-                searchList.innerHTML = '<div class="no-results">加载搜索记录失败</div>';
+                console.error('Failed to load search records:', data.error);
+                searchList.innerHTML = '<div class="no-results">Failed to load search records</div>';
             }
         } catch (error) {
-            console.error('加载搜索记录时出错:', error);
-            searchList.innerHTML = '<div class="no-results">网络错误，请重试</div>';
+            console.error('Error loading search records:', error);
+            searchList.innerHTML = '<div class="no-results">Network error, please try again</div>';
         }
     }
 
-    // 渲染搜索记录
+    // Render search records
     function renderSearchRecords(records) {
         if (records.length === 0) {
-            searchList.innerHTML = '<div class="no-results">暂无搜索记录</div>';
+            searchList.innerHTML = '<div class="no-results">No search records found</div>';
             return;
         }
 
@@ -66,52 +78,59 @@ document.addEventListener('DOMContentLoaded', function() {
             const recordElement = createSearchRecordElement(record);
             searchList.appendChild(recordElement);
         });
+        
+        // Auto scroll to bottom to show latest records
+        setTimeout(() => {
+            searchList.scrollTop = searchList.scrollHeight;
+        }, 100);
     }
 
-    // 创建搜索记录元素
+    // Create search record element
     function createSearchRecordElement(record) {
         const template = document.getElementById('search-record-template');
         const element = template.content.cloneNode(true);
 
-        // 填充数据
-        const keywordsText = Array.isArray(record.keywords) ? record.keywords.join(', ') : '未知';
+        // Fill data
+        const keywordsText = Array.isArray(record.keywords) && record.keywords.length > 0 
+            ? record.keywords.join(', ') 
+            : 'AI产品搜索'; // 为空关键词提供默认显示文本
         element.querySelector('.record-keywords').textContent = keywordsText;
         
-        const dateRange = `${record.start_date} 至 ${record.end_date}`;
+        const dateRange = `${record.start_date} to ${record.end_date}`;
         element.querySelector('.record-date').textContent = dateRange;
         
         const statusElement = element.querySelector('.record-status');
         statusElement.textContent = getStatusText(record.status);
         statusElement.className = `record-status ${record.status}`;
         
-        element.querySelector('.record-count').textContent = `${record.total_products} 个产品`;
+        element.querySelector('.record-count').textContent = `${record.total_products} products`;
 
-        // 绑定查看产品事件
+        // Bind view products event
         const viewBtn = element.querySelector('.view-products-btn');
         viewBtn.addEventListener('click', () => viewSearchProducts(record.id));
 
-        // 绑定删除事件
+        // Bind delete event
         const deleteBtn = element.querySelector('.delete-record-btn');
         deleteBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // 防止触发其他事件
+            e.stopPropagation(); // Prevent triggering other events
             deleteSearchRecord(record.id, record.keywords);
         });
 
         return element;
     }
 
-    // 获取状态文本
+    // Get status text
     function getStatusText(status) {
         const statusMap = {
-            'pending': '等待中',
-            'running': '进行中',
-            'completed': '已完成',
-            'failed': '失败'
+            'pending': 'Pending',
+            'running': 'Running',
+            'completed': 'Completed',
+            'failed': 'Failed'
         };
         return statusMap[status] || status;
     }
 
-    // 查看搜索的产品
+    // View search products
     async function viewSearchProducts(searchId) {
         try {
             const response = await fetch(`/api/search-records/${searchId}/products`);
@@ -119,35 +138,35 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (response.ok) {
                 if (data.products.length > 0) {
-                    // 如果只有一个产品，直接显示详情
+                    // If only one product, show details directly
                     if (data.products.length === 1) {
                         showProductDetail(data.products[0].id);
                     } else {
-                        // 显示产品列表供选择
+                        // Show product list for selection
                         showProductSelection(data.products);
                     }
                 } else {
-                    alert('该搜索暂无产品数据');
+                    alert('No product data found for this search');
                 }
             } else {
-                console.error('获取产品列表失败:', data.error);
-                alert('获取产品列表失败');
+                console.error('Failed to get product list:', data.error);
+                alert('Failed to get product list');
             }
         } catch (error) {
-            console.error('获取产品列表时出错:', error);
-            alert('网络错误，请重试');
+            console.error('Error getting product list:', error);
+            alert('Network error, please try again');
         }
     }
 
-    // 显示产品选择界面（多个产品时）
+    // Show product selection interface (when multiple products)
     function showProductSelection(products) {
-        // 创建产品选择模态框
+        // Create product selection modal
         const modal = document.createElement('div');
         modal.className = 'modal';
         modal.innerHTML = `
             <div class="modal-content">
                 <div class="modal-header">
-                    <h3>选择要查看的产品</h3>
+                    <h3>Select Product to View</h3>
                     <button class="modal-close">&times;</button>
                 </div>
                 <div class="modal-body">
@@ -156,14 +175,14 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="product-selection-item" data-product-id="${product.id}">
                                 <div class="product-info">
                                     <h4>${product.name}</h4>
-                                    <p>${product.description || '无描述'}</p>
+                                    <p>${product.description || 'No description'}</p>
                                     <div class="product-metrics">
                                         <span>👍 ${product.total_likes}</span>
                                         <span>🔄 ${product.total_retweets}</span>
                                         <span>💬 ${product.total_replies}</span>
                                     </div>
                                 </div>
-                                <button class="view-detail-btn">查看详情</button>
+                                <button class="view-detail-btn">View Details</button>
                             </div>
                         `).join('')}
                     </div>
@@ -173,7 +192,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         document.body.appendChild(modal);
 
-        // 绑定事件
+        // Bind events
         modal.querySelector('.modal-close').addEventListener('click', (e) => {
             e.stopPropagation();
             document.body.removeChild(modal);
@@ -194,7 +213,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // 显示产品详情
+    // Show product details
     async function showProductDetail(productId) {
         try {
             currentProductId = productId;
@@ -205,26 +224,38 @@ document.addEventListener('DOMContentLoaded', function() {
             if (response.ok) {
                 renderProductDetail(data.product, data.posts);
                 
-                // 切换到详情视图
+                // Switch to detail view
                 document.querySelector('.search-history').classList.add('hidden');
                 productDetail.classList.remove('hidden');
+                
+                // Stop auto refresh
+                stopAutoRefresh();
             } else {
-                console.error('获取产品详情失败:', data.error);
-                alert('获取产品详情失败');
+                console.error('Failed to get product details:', data.error);
+                alert('Failed to get product details');
             }
         } catch (error) {
-            console.error('获取产品详情时出错:', error);
-            alert('网络错误，请重试');
+            console.error('Error getting product details:', error);
+            alert('Network error, please try again');
         }
     }
 
-    // 渲染产品详情
+    // Render product details
     function renderProductDetail(product, posts) {
-        // 更新产品基本信息
+        // Update search information
+        if (product.search_info) {
+            const searchInfo = product.search_info;
+            document.getElementById('search-keywords').textContent = searchInfo.keywords.join(', ');
+            document.getElementById('search-date-range').textContent = `${searchInfo.start_date} to ${searchInfo.end_date}`;
+            document.getElementById('search-categories').textContent = searchInfo.categories.join(', ');
+            document.getElementById('search-task-id').textContent = searchInfo.task_id;
+        }
+        
+        // Update product basic information
         document.getElementById('product-name').textContent = product.name;
         document.getElementById('detail-name').textContent = product.name;
-        document.getElementById('detail-category').textContent = product.category || '未分类';
-        document.getElementById('detail-description').textContent = product.description || '无描述';
+        document.getElementById('detail-category').textContent = product.category || 'Uncategorized';
+        document.getElementById('detail-description').textContent = product.description || 'No description';
         
         const urlElement = document.getElementById('detail-url');
         if (product.official_url) {
@@ -234,28 +265,28 @@ document.addEventListener('DOMContentLoaded', function() {
             urlElement.style.display = 'none';
         }
 
-        // 更新社交数据汇总
+        // Update social data summary
         document.getElementById('total-posts').textContent = product.total_posts || 0;
         document.getElementById('total-likes').textContent = product.total_likes || 0;
         document.getElementById('total-retweets').textContent = product.total_retweets || 0;
         document.getElementById('total-replies').textContent = product.total_replies || 0;
         document.getElementById('total-views').textContent = product.total_views || 0;
 
-        // 渲染推文列表
+                // Render posts list
         renderPosts(posts);
-
-        // 显示深度搜索按钮（如果未完成）
+        
+        // Show deep search button (if not completed)
         if (!product.deep_search_completed) {
             showDeepSearchOption();
         }
     }
 
-    // 渲染推文列表
+    // Render posts list
     function renderPosts(posts) {
         const postsList = document.getElementById('posts-list');
         
         if (posts.length === 0) {
-            postsList.innerHTML = '<div class="no-results">暂无相关推文</div>';
+            postsList.innerHTML = '<div class="no-results">No related posts found</div>';
             return;
         }
 
@@ -266,16 +297,16 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // 创建推文元素
+    // Create post element
     function createPostElement(post) {
         const template = document.getElementById('post-template');
         const element = template.content.cloneNode(true);
 
-        // 填充数据
-        element.querySelector('.post-author').textContent = post.author || '未知用户';
+        // Fill data
+        element.querySelector('.post-author').textContent = post.author || 'Unknown User';
         element.querySelector('.post-date').textContent = post.post_date ? 
-            new Date(post.post_date).toLocaleString() : '未知时间';
-        element.querySelector('.post-content').textContent = post.content || '无内容';
+            new Date(post.post_date).toLocaleString() : 'Unknown Time';
+        element.querySelector('.post-content').textContent = post.content || 'No Content';
         
         element.querySelector('.likes').textContent = post.likes || 0;
         element.querySelector('.retweets').textContent = post.retweets || 0;
@@ -289,7 +320,7 @@ document.addEventListener('DOMContentLoaded', function() {
             linkElement.style.display = 'none';
         }
 
-        // 标记原始推文
+        // Mark original post
         if (post.is_original) {
             element.querySelector('.post-item').classList.add('original-post');
         }
@@ -297,15 +328,15 @@ document.addEventListener('DOMContentLoaded', function() {
         return element;
     }
 
-    // 显示深度搜索选项
+    // Show deep search options
     function showDeepSearchOption() {
         const existingBtn = document.getElementById('deep-search-btn');
-        if (existingBtn) return; // 避免重复添加
+        if (existingBtn) return; // Avoid duplicate addition
 
         const deepSearchBtn = document.createElement('button');
         deepSearchBtn.id = 'deep-search-btn';
         deepSearchBtn.className = 'primary';
-        deepSearchBtn.textContent = '🔍 深度搜索相关推文';
+        deepSearchBtn.textContent = '🔍 Deep Search Related Posts';
         deepSearchBtn.style.marginLeft = '1rem';
 
         deepSearchBtn.addEventListener('click', triggerDeepSearch);
@@ -313,13 +344,13 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelector('.section-header').appendChild(deepSearchBtn);
     }
 
-    // 触发深度搜索
+    // Trigger deep search
     async function triggerDeepSearch() {
         if (!currentProductId) return;
 
         const deepSearchBtn = document.getElementById('deep-search-btn');
         deepSearchBtn.disabled = true;
-        deepSearchBtn.textContent = '🔍 正在启动...';
+        deepSearchBtn.textContent = '🔍 Starting...';
 
         try {
             const response = await fetch(`/api/products/${currentProductId}/deep-search`, {
@@ -328,27 +359,27 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
 
             if (response.ok) {
-                deepSearchBtn.textContent = '🔍 搜索中...';
+                deepSearchBtn.textContent = '🔍 Searching...';
                 
-                // 开始轮询深度搜索状态
+                // Start polling deep search status
                 pollDeepSearchStatus(data.task_id, data.product_id, deepSearchBtn);
             } else {
-                console.error('启动深度搜索失败:', data.error);
-                alert('启动深度搜索失败: ' + data.error);
+                console.error('Failed to start deep search:', data.error);
+                alert('Failed to start deep search: ' + data.error);
                 deepSearchBtn.disabled = false;
-                deepSearchBtn.textContent = '🔍 深度搜索相关推文';
+                deepSearchBtn.textContent = '🔍 Deep Search Related Posts';
             }
         } catch (error) {
-            console.error('启动深度搜索时出错:', error);
-            alert('网络错误，请重试');
+            console.error('Error starting deep search:', error);
+            alert('Network error, please try again');
             deepSearchBtn.disabled = false;
-            deepSearchBtn.textContent = '🔍 深度搜索相关推文';
+            deepSearchBtn.textContent = '🔍 Deep Search Related Posts';
         }
     }
 
-    // 轮询深度搜索状态
+    // Poll deep search status
     async function pollDeepSearchStatus(taskId, productId, button) {
-        const maxAttempts = 60; // 最多轮询5分钟
+        const maxAttempts = 60; // Maximum 5 minutes polling
         let attempts = 0;
 
         const poll = async () => {
@@ -360,45 +391,45 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (response.ok) {
                     if (data.status === 'completed') {
-                        button.textContent = `✅ 完成 (${data.posts_found}条推文)`;
+                        button.textContent = `✅ Completed (${data.posts_found} posts)`;
                         button.disabled = false;
                         
-                        // 刷新产品详情
+                        // Refresh product details
                         await refreshProductPosts();
-                        alert(`深度搜索完成！找到 ${data.posts_found} 条相关推文`);
+                        alert(`Deep search completed! Found ${data.posts_found} related posts`);
                         
                     } else if (data.status === 'failed') {
-                        button.textContent = '❌ 搜索失败';
+                        button.textContent = '❌ Search Failed';
                         button.disabled = false;
-                        alert('深度搜索失败');
+                        alert('Deep search failed');
                         
                     } else if (data.status === 'running' && attempts < maxAttempts) {
-                        button.textContent = `🔍 搜索中... (${attempts}/${maxAttempts})`;
-                        setTimeout(poll, 5000); // 5秒后再次检查
+                        button.textContent = `🔍 Searching... (${attempts}/${maxAttempts})`;
+                        setTimeout(poll, 5000); // Check again after 5 seconds
                         
                     } else {
-                        // 超时
-                        button.textContent = '⏰ 搜索超时';
+                        // Timeout
+                        button.textContent = '⏰ Search Timeout';
                         button.disabled = false;
-                        alert('深度搜索超时，请稍后手动刷新查看结果');
+                        alert('Deep search timeout, please manually refresh later to check results');
                     }
                 } else {
-                    throw new Error(data.error || '检查状态失败');
+                    throw new Error(data.error || 'Status check failed');
                 }
             } catch (error) {
-                console.error('轮询深度搜索状态时出错:', error);
+                console.error('Error polling deep search status:', error);
                 if (attempts < maxAttempts) {
-                    setTimeout(poll, 5000); // 出错时也继续重试
+                    setTimeout(poll, 5000); // Continue retry even on error
                 } else {
-                    button.textContent = '❌ 检查失败';
+                    button.textContent = '❌ Check Failed';
                     button.disabled = false;
-                    alert('无法检查深度搜索状态，请稍后手动刷新');
+                    alert('Unable to check deep search status, please manually refresh later');
                 }
             }
         };
 
         // 开始轮询
-        setTimeout(poll, 2000); // 2秒后开始第一次检查
+        setTimeout(poll, 2000); // Start first check after 2 seconds
     }
 
     // 刷新产品推文
@@ -406,7 +437,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!currentProductId) return;
 
         refreshPostsBtn.disabled = true;
-        refreshPostsBtn.textContent = '🔄 刷新中...';
+        refreshPostsBtn.textContent = '🔄 Refreshing...';
 
         try {
             const response = await fetch(`/api/products/${currentProductId}`);
@@ -414,25 +445,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (response.ok) {
                 renderProductDetail(data.product, data.posts);
-                alert('数据已刷新');
+                alert('Data refreshed');
             } else {
-                console.error('刷新失败:', data.error);
-                alert('刷新失败');
+                console.error('Refresh failed:', data.error);
+                alert('Refresh failed');
             }
         } catch (error) {
-            console.error('刷新时出错:', error);
-            alert('网络错误，请重试');
+            console.error('Error during refresh:', error);
+            alert('Network error, please try again');
         } finally {
             refreshPostsBtn.disabled = false;
-            refreshPostsBtn.textContent = '🔄 刷新数据';
+            refreshPostsBtn.textContent = '🔄 Refresh Data';
         }
     }
 
     // 删除搜索记录
     async function deleteSearchRecord(searchId, keywords) {
-        const keywordsText = Array.isArray(keywords) ? keywords.join(', ') : '未知';
+        const keywordsText = Array.isArray(keywords) && keywords.length > 0 
+            ? keywords.join(', ') 
+            : 'AI产品搜索';
         
-        if (!confirm(`确定要删除搜索记录"${keywordsText}"吗？\n\n此操作将删除该搜索的所有产品和推文数据，且无法恢复。`)) {
+        if (!confirm(`Are you sure you want to delete the search record "${keywordsText}"?\n\nThis operation will delete all product and post data for this search and cannot be undone.`)) {
             return;
         }
 
@@ -443,16 +476,16 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
 
             if (response.ok) {
-                alert('搜索记录已删除');
-                // 重新加载搜索记录列表
+                alert('Search record deleted');
+                // Reload search records list
                 loadSearchRecords();
             } else {
-                console.error('删除搜索记录失败:', data.error);
-                alert('删除失败: ' + data.error);
+                console.error('Failed to delete search record:', data.error);
+                alert('Delete failed: ' + data.error);
             }
         } catch (error) {
-            console.error('删除搜索记录时出错:', error);
-            alert('网络错误，请重试');
+            console.error('Error deleting search record:', error);
+            alert('Network error, please try again');
         }
     }
 
@@ -461,5 +494,47 @@ document.addEventListener('DOMContentLoaded', function() {
         productDetail.classList.add('hidden');
         document.querySelector('.search-history').classList.remove('hidden');
         currentProductId = null;
+        
+        // Restart auto refresh
+        startAutoRefresh();
     }
+    
+    // 启动自动刷新
+    function startAutoRefresh() {
+        // 清除现有的刷新间隔
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+        }
+        
+        // Set new refresh interval (refresh every 30 seconds)
+        autoRefreshInterval = setInterval(() => {
+            // Only refresh on search list page
+            if (!productDetail.classList.contains('hidden')) {
+                return; // Don't refresh if on product detail page
+            }
+            
+            console.log('[DEBUG] Auto refresh search records list');
+            loadSearchRecords();
+        }, 30000); // 30 seconds
+    }
+    
+    // 停止自动刷新
+    function stopAutoRefresh() {
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+            autoRefreshInterval = null;
+        }
+    }
+    
+    // 页面隐藏时停止刷新，显示时恢复刷新
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            stopAutoRefresh();
+        } else {
+            // When page becomes visible again, restart refresh if on search list page
+            if (productDetail.classList.contains('hidden')) {
+                startAutoRefresh();
+            }
+        }
+    });
 });

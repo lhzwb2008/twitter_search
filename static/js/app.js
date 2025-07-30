@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const livePreview = document.getElementById('live-preview');
     const previewLink = document.getElementById('preview-link');
     const productsGrid = document.getElementById('products-grid');
-    const loading = document.getElementById('loading');
+    const resultsSection = document.getElementById('results');
     
     // 模态框元素
     const promptModal = document.getElementById('prompt-modal');
@@ -529,8 +529,9 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         
         // 收集搜索参数
         const formData = new FormData(searchForm);
+        const keywords = getTagValues('keywords-tags');
         const searchParams = {
-            keywords: getTagValues('keywords-tags'),
+            keywords: keywords.length > 0 ? keywords : ['AI app'], // 确保至少有一个关键词
             start_date: formData.get('startDate') || '2025-06-01',
             end_date: formData.get('endDate') || '2025-07-01',
             categories: Array.from(document.querySelectorAll('input[name="categories"]:checked'))
@@ -544,7 +545,6 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         searchBtn.disabled = true;
         searchBtn.textContent = 'Discovering...';
         taskStatus.classList.remove('hidden');
-        loading.classList.remove('hidden');
 
         try {
             // 发起搜索请求
@@ -667,25 +667,8 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
                 displayTaskSteps(data.steps);
             }
             
-            // 显示任务输出信息
-            if (data.output) {
-                displayTaskOutput(data.output);
-            }
-            
-            // 显示browser-use原始输出信息
-            if (data.raw_output) {
-                displayTaskOutput(data.raw_output);
-            }
-            
-            // 显示输出文件列表
-            if (data.output_files && data.output_files.length > 0) {
-                displayOutputFiles(data.output_files);
-            }
-            
-            // 显示输出文件内容
-    if (data.output_files_content) {
-        displayOutputFilesContent(data.output_files_content);
-    }
+            // 不再显示Task Output和Output Files，因为Browser-Use Complete Results已经包含了所有信息
+            // 移除这些显示以简化界面
 
             // 如果返回了live_url，显示它
             if (data.live_url) {
@@ -706,7 +689,6 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             if (['finished', 'failed', 'stopped', 'partial_success'].includes(data.status)) {
                 clearInterval(statusCheckInterval);
                 statusCheckInterval = null;
-                loading.classList.add('hidden');  // 隐藏加载动画
                 
                 // 清理运行时的UI元素
                 const runningHint = document.querySelector('.running-hint');
@@ -729,23 +711,35 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
                     statusText.textContent = '✅ Search completed!';
                 }
 
-                // 显示 browser-use 完整结果
-                if (['finished', 'stopped', 'partial_success'].includes(data.status)) {
-                    displayBrowserUseResults(data);
-                }
-
-                if ((data.status === 'finished' || data.status === 'partial_success') && data.result) {
+                // 任务完成后，优先从数据库获取已入库的产品数据并显示搜索结果
+                if (data.status === 'finished') {
+                    // 尝试从数据库获取产品数据
+                    loadDatabaseProducts(currentTaskId, statusText);
+                } else if (data.parsed_products && data.parsed_products.products && data.parsed_products.products.length > 0) {
+                    // 有产品数据，认为任务成功
+                    displayResults(data.parsed_products, false, false);
+                    statusText.textContent = '✅ 任务完成';
+                } else if (data.execution_error) {
+                    showExecutionErrorMessage(data.execution_error);
+                    statusText.textContent = '⚠️ 任务执行遇到问题';
+                } else if ((data.status === 'finished' || data.status === 'partial_success') && data.result) {
                     displayResults(data.result, data.status === 'partial_success', data.recovered_from_logs);
                     
                     // 如果是部分成功，显示额外的提示信息
                     if (data.status === 'partial_success') {
                         showPartialSuccessMessage(data.message || '任务中断，但成功恢复了部分数据');
                     }
+                } else if (data.status === 'finished' && (!data.result && !data.parsed_products)) {
+                    // 任务完成但没有有效结果
+                    showExecutionErrorMessage('任务已完成但未找到有效的AI产品数据。这可能是由于网络问题或搜索目标网站不可访问导致的。');
+                    statusText.textContent = '⚠️ 任务完成但无有效结果';
                 } else if (data.status === 'failed') {
-                    statusText.textContent = 'Task failed';
+                    statusText.textContent = '❌ 任务执行失败';
+                    showExecutionErrorMessage('任务执行失败，请检查网络连接或稍后重试。');
                 } else {
                     // 对于stopped状态，也要重置UI
-                    statusText.textContent = 'Task stopped';
+                    statusText.textContent = '⏹️ 任务已停止';
+                    showExecutionErrorMessage('任务执行被中断，可能是由于网络问题或其他技术原因。');
                 }
             }
 
@@ -832,6 +826,72 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         }, 8000);
     }
 
+    // 显示未找到产品的建议消息
+    function showNoProductsFoundMessage() {
+        // 创建建议提示消息
+        const suggestionDiv = document.createElement('div');
+        suggestionDiv.className = 'alert alert-info';
+        suggestionDiv.innerHTML = `
+            <div class="alert-content">
+                <div class="alert-icon">💡</div>
+                <div class="alert-text">
+                    <strong>No products found</strong>
+                    <p>The search task completed but no products were saved to the database. This might be due to:</p>
+                    <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                        <li>Network connectivity issues during execution</li>
+                        <li>Target websites being temporarily unavailable</li>
+                        <li>Search terms not matching current content</li>
+                    </ul>
+                    <p><strong>Suggestion:</strong> Try refreshing the page and searching again with different keywords or date ranges.</p>
+                </div>
+                <button class="alert-action-btn" onclick="window.location.reload()">
+                    🔄 Refresh & Try Again
+                </button>
+            </div>
+        `;
+
+        // 插入到任务状态区域
+        const taskStatusElement = document.getElementById('task-status');
+        if (taskStatusElement) {
+            taskStatusElement.appendChild(suggestionDiv);
+        }
+    }
+
+    // 显示执行错误消息
+    function showExecutionErrorMessage(errorMessage) {
+        // 创建错误提示消息
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'alert alert-error';
+        errorDiv.innerHTML = `
+            <div class="alert-content">
+                <div class="alert-icon">❌</div>
+                <div class="alert-text">
+                    <strong>任务执行遇到问题</strong>
+                    <p>${errorMessage}</p>
+                    <div class="alert-actions">
+                        <button onclick="location.reload()" class="retry-btn primary">🔄 刷新页面重试</button>
+                        <button onclick="this.parentElement.parentElement.parentElement.parentElement.remove()" class="dismiss-btn secondary">关闭提示</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // 插入到任务状态区域之后
+        const taskStatus = document.getElementById('task-status');
+        if (taskStatus && taskStatus.parentNode) {
+            taskStatus.parentNode.insertBefore(errorDiv, taskStatus.nextSibling);
+        } else {
+            // 如果没有任务状态区域，插入到主容器的顶部
+            const container = document.querySelector('.container main');
+            if (container) {
+                container.insertBefore(errorDiv, container.firstChild);
+            }
+        }
+
+        // 自动滚动到错误消息
+        errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
     // 更新状态UI
     function updateStatusUI(status, data = {}) {
         const statusMap = {
@@ -869,8 +929,75 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         }
     }
 
+    // 从数据库加载产品数据
+    async function loadDatabaseProducts(taskId, statusText, retryCount = 0) {
+        const maxRetries = 5;
+        try {
+            console.log(`[DEBUG] 从数据库加载任务 ${taskId} 的产品数据 (尝试 ${retryCount + 1}/${maxRetries})`);
+            
+            const response = await fetch(`/api/task/${taskId}/products`);
+            const data = await response.json();
+            
+            console.log(`[DEBUG] API响应:`, data);
+            
+            if (response.ok && data.products && data.products.length > 0) {
+                console.log(`[DEBUG] 成功从数据库获取 ${data.products.length} 个产品`);
+                displayResults(data, false, false);
+                statusText.textContent = `✅ 任务完成！已找到 ${data.products.length} 个AI产品并成功入库`;
+                
+                // 显示成功提示
+                const successMessage = document.createElement('div');
+                successMessage.style.cssText = `
+                    background: #10b981; color: white; padding: 12px 20px; 
+                    border-radius: 8px; margin: 15px 0; text-align: center;
+                    font-weight: 500; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                `;
+                successMessage.textContent = `🎉 搜索完成！在下方查看找到的 ${data.products.length} 个AI产品`;
+                
+                const taskStatusElement = document.getElementById('task-status');
+                if (taskStatusElement) {
+                    taskStatusElement.appendChild(successMessage);
+                    
+                    // 3秒后移除提示
+                    setTimeout(() => {
+                        if (successMessage.parentNode) {
+                            successMessage.parentNode.removeChild(successMessage);
+                        }
+                    }, 5000);
+                }
+            } else {
+                console.log(`[DEBUG] 数据库中暂无产品数据: ${data.message || '未知原因'}`);
+                // 如果数据库中没有数据且还有重试次数，继续重试
+                if (retryCount < maxRetries) {
+                    statusText.textContent = `⏳ Waiting for products to be saved... (${retryCount + 1}/${maxRetries})`;
+                    setTimeout(() => {
+                        loadDatabaseProducts(taskId, statusText, retryCount + 1);
+                    }, 3000); // 增加到3秒间隔
+                } else {
+                    statusText.textContent = '⚠️ No products found in database';
+                    console.log('[DEBUG] 已达到最大重试次数，停止重试');
+                    
+                    // 显示重新搜索建议
+                    showNoProductsFoundMessage();
+                }
+            }
+        } catch (error) {
+            console.error(`[DEBUG] 加载数据库产品数据失败:`, error);
+            if (retryCount < maxRetries) {
+                setTimeout(() => {
+                    loadDatabaseProducts(taskId, statusText, retryCount + 1);
+                }, 3000);
+            } else {
+                statusText.textContent = '⚠️ Failed to fetch product data';
+                showNoProductsFoundMessage();
+            }
+        }
+    }
+
     // 显示搜索结果
     function displayResults(data, isPartialSuccess = false, isRecovered = false) {
+        console.log('[DEBUG] displayResults called with data:', data);
+        
         if (!data) {
             resultsSection.classList.add('hidden');
             return;
@@ -884,6 +1011,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
 
         // 清空现有结果
         productsGrid.innerHTML = '';
+        console.log('[DEBUG] Cleared existing products grid');
 
         // 显示搜索总结
         const searchSummary = document.getElementById('search-summary');
@@ -917,12 +1045,24 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
 
         // 显示产品列表
         if (data.products && data.products.length > 0) {
-            data.products.forEach(product => {
+            console.log(`[DEBUG] Displaying ${data.products.length} products`);
+            data.products.forEach((product, index) => {
+                console.log(`[DEBUG] Creating card for product ${index + 1}:`, product);
                 const productCard = createProductCard(product, isRecovered);
                 productsGrid.appendChild(productCard);
             });
             resultsSection.classList.remove('hidden');
+            console.log('[DEBUG] Results section made visible');
+            
+            // 自动滚动到结果区域
+            setTimeout(() => {
+                resultsSection.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'start' 
+                });
+            }, 500);
         } else {
+            console.log('[DEBUG] No products to display, hiding results section');
             resultsSection.classList.add('hidden');
         }
 
@@ -955,6 +1095,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         // 设置链接
         const productUrl = card.querySelector('.product-url');
         const postUrl = card.querySelector('.post-url');
+        const detailUrl = card.querySelector('.detail-url');
 
         // 处理产品链接（官方网站）
         if (product.url && product.url.trim() && product.url !== '#' && !product.url.includes('nitter')) {
@@ -976,6 +1117,16 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             postUrl.addEventListener('click', (e) => e.preventDefault());
         }
 
+        // 处理详情页面链接
+        if (product.id) {
+            detailUrl.href = `/results?product=${product.id}`;
+            detailUrl.classList.remove('disabled');
+        } else {
+            detailUrl.href = '#';
+            detailUrl.classList.add('disabled');
+            detailUrl.addEventListener('click', (e) => e.preventDefault());
+        }
+
         // 如果是恢复的数据，添加特殊样式
         if (isRecovered) {
             card.querySelector('.product-source').innerHTML = '<span class="source-tag recovered">Recovered from logs</span>';
@@ -993,7 +1144,6 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         searchBtn.textContent = 'Discover AI Products';
         taskStatus.classList.add('hidden');
         taskControls.classList.add('hidden');
-        loading.classList.add('hidden');
         livePreview.classList.add('hidden');
         
         // 重置预览链接
@@ -1004,8 +1154,11 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         
         taskIdDisplay.textContent = '';
         currentTaskId = null;
+        displayedStepsCount = 0;
         
-
+        // 清理错误提示
+        const alerts = document.querySelectorAll('.alert');
+        alerts.forEach(alert => alert.remove());
         
         // 清理中间进度显示
         const progressSection = document.getElementById('intermediate-progress');
@@ -1019,6 +1172,9 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         }
     }
 
+    // 全局变量记录已显示的步骤数
+    let displayedStepsCount = 0;
+
     // 显示任务步骤信息
     function displayTaskSteps(steps) {
         console.log('[DEBUG] Displaying task steps:', steps);
@@ -1026,6 +1182,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         // 检查步骤数据是否有效
         if (!steps || steps.length === 0) {
             console.log('[DEBUG] Step data is empty, do not display steps container');
+            displayedStepsCount = 0;
             return;
         }
         
@@ -1039,6 +1196,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         
         if (!hasValidSteps) {
             console.log('[DEBUG] Step data has no valid content, do not display steps container');
+            displayedStepsCount = 0;
             return;
         }
         
@@ -1062,145 +1220,141 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             }
         }
         
+        // 如果是第一次显示或步骤数量减少了（新任务），重新渲染所有步骤
+        if (displayedStepsCount === 0 || steps.length < displayedStepsCount) {
+            renderAllSteps(steps, stepsContainer);
+            displayedStepsCount = steps.length;
+            return;
+        }
+
+        // 如果有新步骤，只添加新的步骤
+        if (steps.length > displayedStepsCount) {
+            addNewSteps(steps, stepsContainer);
+            displayedStepsCount = steps.length;
+            return;
+        }
+
+        // 如果步骤数量相同，更新步骤计数（可能内容有变化）
+        updateStepsCount(steps.length);
+    }
+
+    function renderAllSteps(steps, stepsContainer) {
         // 生成步骤HTML，使用实际的数据字段
         const stepsHtml = steps.map((step, index) => {
-            // 提取步骤信息，适配browser-use的实际数据结构
-            const stepNumber = step.step || (index + 1);
-            const action = step.action || step.next_goal || 'Step Action';
-            const description = step.description || step.thinking || step.evaluation_previous_goal || 'No description';
-            const time = step.time || step.timestamp || '';
-            const url = step.url || '';
-            
-            // 如果所有关键信息都为空，跳过这个步骤
-            if (!action || action === 'Unknown Action') {
-                if (!description || description === 'No description') {
-                    return '';
-                }
-            }
-            
-            return `
-                <div class="step-item">
-                    <div class="step-number">${stepNumber}</div>
-                    <div class="step-content">
-                        <div class="step-action">${action}</div>
-                        <div class="step-description">${description}</div>
-                        ${time ? `<div class="step-time">${time}</div>` : ''}
-                        ${url ? `<div class="step-url">URL: ${url}</div>` : ''}
-                    </div>
-                </div>
-            `;
+            return generateStepHtml(step, index, steps.length);
         }).filter(html => html.trim()).join('');
-        
+
         // 如果没有有效的步骤HTML，不显示容器
         if (!stepsHtml.trim()) {
             console.log('[DEBUG] Generated step HTML is empty, do not display steps container');
             return;
         }
-        
+
         stepsContainer.innerHTML = `
             <div class="steps-header">
                 <h3>Task Execution Steps</h3>
                 <span class="steps-count">${steps.length} steps</span>
             </div>
-            <div class="steps-list">
+            <div class="steps-list" id="steps-list-container">
                 ${stepsHtml}
             </div>
         `;
         
         stepsContainer.style.display = 'block';
+        
+        // 自动滚动到最下方显示最新步骤
+        setTimeout(() => {
+            const stepsList = document.getElementById('steps-list-container');
+            if (stepsList) {
+                stepsList.scrollTop = stepsList.scrollHeight;
+            }
+        }, 100);
     }
-    
-    // 显示任务输出信息
-    function displayTaskOutput(output) {
-        console.log('[DEBUG] Displaying task output:', output);
-        
-        // 检查输出内容是否有效
-        if (!output || !output.trim()) {
-            console.log('[DEBUG] Output content is empty, do not display output container');
-            return;
+
+    function addNewSteps(steps, stepsContainer) {
+        const stepsList = document.getElementById('steps-list-container');
+        if (!stepsList) return;
+
+        // 移除所有现有的latest-step类和latest-indicator
+        const existingSteps = stepsList.querySelectorAll('.step-item');
+        existingSteps.forEach(step => {
+            step.classList.remove('latest-step');
+            const indicator = step.querySelector('.latest-indicator');
+            if (indicator) {
+                indicator.remove();
+            }
+        });
+
+        // 只添加新的步骤
+        for (let i = displayedStepsCount; i < steps.length; i++) {
+            const stepHtml = generateStepHtml(steps[i], i, steps.length);
+            if (stepHtml.trim()) {
+                stepsList.insertAdjacentHTML('beforeend', stepHtml);
+            }
         }
+
+        // 重新标记最新的步骤
+        const allSteps = stepsList.querySelectorAll('.step-item');
+        const totalSteps = allSteps.length;
+        for (let i = Math.max(0, totalSteps - 3); i < totalSteps; i++) {
+            allSteps[i].classList.add('latest-step');
+            if (!allSteps[i].querySelector('.latest-indicator')) {
+                allSteps[i].insertAdjacentHTML('beforeend', '<div class="latest-indicator">Latest</div>');
+            }
+        }
+
+        // 更新步骤计数
+        updateStepsCount(steps.length);
+
+        // 平滑滚动到最新步骤
+        setTimeout(() => {
+            stepsList.scrollTop = stepsList.scrollHeight;
+        }, 50);
+    }
+
+    function updateStepsCount(count) {
+        const stepsCountElement = document.querySelector('.steps-count');
+        if (stepsCountElement) {
+            stepsCountElement.textContent = `${count} steps`;
+        }
+    }
+
+    function generateStepHtml(step, index, totalSteps) {
+        // 提取步骤信息，适配browser-use的实际数据结构
+        const stepNumber = step.step || (index + 1);
+        const action = step.action || step.next_goal || 'Step Action';
+        const description = step.description || step.thinking || step.evaluation_previous_goal || 'No description';
+        const time = step.time || step.timestamp || '';
+        const url = step.url || '';
         
-        // 创建或获取输出容器
-        let outputContainer = document.getElementById('task-output');
-        if (!outputContainer) {
-            outputContainer = document.createElement('div');
-            outputContainer.id = 'task-output';
-            outputContainer.className = 'task-output-container';
-            
-            // 插入到步骤信息之后
-            const stepsContainer = document.getElementById('task-steps');
-            if (stepsContainer && stepsContainer.parentNode) {
-                stepsContainer.parentNode.insertBefore(outputContainer, stepsContainer.nextSibling);
-            } else {
-                // 如果没有步骤容器，插入到任务状态区域
-                const taskStatus = document.getElementById('task-status');
-                if (taskStatus) {
-                    taskStatus.appendChild(outputContainer);
-                }
+        // 如果所有关键信息都为空，跳过这个步骤
+        if (!action || action === 'Unknown Action') {
+            if (!description || description === 'No description') {
+                return '';
             }
         }
         
-        outputContainer.innerHTML = `
-            <div class="output-header">
-                <h3>Task Output</h3>
-            </div>
-            <div class="output-content">
-                <pre>${output}</pre>
+        // 标记最新的步骤（最后3个步骤）
+        const isLatest = index >= totalSteps - 3;
+        const latestClass = isLatest ? ' latest-step' : '';
+        
+        return `
+            <div class="step-item${latestClass}">
+                <div class="step-number">${stepNumber}</div>
+                <div class="step-content">
+                    <div class="step-action">${action}</div>
+                    <div class="step-description">${description}</div>
+                    ${time ? `<div class="step-time">${time}</div>` : ''}
+                    ${url ? `<div class="step-url">URL: ${url}</div>` : ''}
+                </div>
+                ${isLatest ? '<div class="latest-indicator">Latest</div>' : ''}
             </div>
         `;
-        
-        outputContainer.style.display = 'block';
     }
     
-    // 显示输出文件列表
-    function displayOutputFiles(outputFiles) {
-        console.log('[DEBUG] Displaying output files:', outputFiles);
-        
-        // 检查文件列表是否有效
-        if (!outputFiles || outputFiles.length === 0) {
-            console.log('[DEBUG] Output file list is empty, do not display files container');
-            return;
-        }
-        
-        // 过滤掉空的文件名
-        const validFiles = outputFiles.filter(file => file && file.trim());
-        if (validFiles.length === 0) {
-            console.log('[DEBUG] No valid output files, do not display files container');
-            return;
-        }
-        
-        // 创建或获取文件容器
-        let filesContainer = document.getElementById('output-files');
-        if (!filesContainer) {
-            filesContainer = document.createElement('div');
-            filesContainer.id = 'output-files';
-            filesContainer.className = 'output-files-container';
-            
-            // 插入到输出信息之后
-            const outputContainer = document.getElementById('task-output');
-            if (outputContainer && outputContainer.parentNode) {
-                outputContainer.parentNode.insertBefore(filesContainer, outputContainer.nextSibling);
-            } else {
-                // 如果没有输出容器，插入到任务状态区域
-                const taskStatus = document.getElementById('task-status');
-                if (taskStatus) {
-                    taskStatus.appendChild(filesContainer);
-                }
-            }
-        }
-        
-        filesContainer.innerHTML = `
-            <div class="files-header">
-                <h3>Output Files</h3>
-                <span class="files-count">${validFiles.length} files</span>
-            </div>
-            <div class="files-list">
-                ${validFiles.map(file => `<div class="file-item"><span class="file-name">${file}</span></div>`).join('')}
-            </div>
-        `;
-        
-        filesContainer.style.display = 'block';
-    }
+    // 已移除displayTaskOutput函数 - 不再显示Task Output，因为Browser-Use Complete Results已包含所有信息
+    
+    // 已移除displayOutputFiles函数 - 不再显示Output Files，简化界面显示
     
     // 显示 browser-use 完整结果
     function displayBrowserUseResults(data) {
@@ -1256,36 +1410,36 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             `;
         }
         
-        // 显示输出文件内容
-        if (data.output_files_content && Object.keys(data.output_files_content).length > 0) {
-            resultHtml += `
-                <div class="output-files-section">
-                    <h4>📁 Generated Files</h4>
-            `;
-            
-            Object.entries(data.output_files_content).forEach(([filename, content]) => {
-                resultHtml += `
-                    <div class="file-content">
-                        <h5>${filename}</h5>
-                        <div class="file-content-body">
-                            <pre>${content}</pre>
-                        </div>
-                    </div>
-                `;
-            });
-            
-            resultHtml += `</div>`;
-        } else if (data.output_files && data.output_files.length > 0) {
-            // 如果有文件列表但没有内容，显示文件列表
-            resultHtml += `
-                <div class="output-files-section">
-                    <h4>📁 Output Files (Content not available)</h4>
-                    <div class="files-list">
-                        ${data.output_files.map(file => `<div class="file-item"><span class="file-name">${file}</span></div>`).join('')}
-                    </div>
-                </div>
-            `;
-        }
+        // 不显示Generated Files部分，因为文件通常无法访问且不需要展示给用户
+        // if (data.output_files_content && Object.keys(data.output_files_content).length > 0) {
+        //     resultHtml += `
+        //         <div class="output-files-section">
+        //             <h4>📁 Generated Files</h4>
+        //     `;
+        //     
+        //     Object.entries(data.output_files_content).forEach(([filename, content]) => {
+        //         resultHtml += `
+        //             <div class="file-content">
+        //                 <h5>${filename}</h5>
+        //                 <div class="file-content-body">
+        //                     <pre>${content}</pre>
+        //                 </div>
+        //             </div>
+        //         `;
+        //     });
+        //     
+        //     resultHtml += `</div>`;
+        // } else if (data.output_files && data.output_files.length > 0) {
+        //     // 如果有文件列表但没有内容，显示文件列表
+        //     resultHtml += `
+        //         <div class="output-files-section">
+        //             <h4>📁 Output Files (Content not available)</h4>
+        //             <div class="files-list">
+        //                 ${data.output_files.map(file => `<div class="file-item"><span class="file-name">${file}</span></div>`).join('')}
+        //             </div>
+        //         </div>
+        //     `;
+        // }
         
         // 显示其他元数据
         if (data.metadata || data.browser_data) {

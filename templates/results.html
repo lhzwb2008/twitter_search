@@ -1,121 +1,144 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>产品列表 - AI产品发现平台</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <title>Product List - AI Product Discovery Platform</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ range(1, 10000) | random }}">
 </head>
 <body>
     <div class="container">
-        <!-- 导航头部 -->
+        <!-- Navigation Header -->
         <nav class="navigation">
             <div class="nav-brand">
-                <h1>🚀 AI产品发现平台</h1>
+                <h1>🚀 AI Product Discovery Platform</h1>
             </div>
             <div class="nav-links">
-                <a href="/" class="nav-link">搜索</a>
-                <a href="/results" class="nav-link active">产品列表</a>
+                <a href="/" class="nav-link">Search</a>
+                <a href="/results" class="nav-link active">Product List</a>
             </div>
         </nav>
 
         <main>
-            <!-- 产品探索 -->
+            <!-- Product Discovery -->
             <section class="search-history">
-                <h2>产品列表</h2>
+                <h2>Product List</h2>
                 <div class="filter-controls">
                     <select id="status-filter" class="filter-select">
-                        <option value="">全部状态</option>
-                        <option value="completed">已完成</option>
-                        <option value="running">进行中</option>
-                        <option value="failed">失败</option>
+                        <option value="">All Status</option>
+                        <option value="completed">Completed</option>
+                        <option value="running">Running</option>
+                        <option value="failed">Failed</option>
                     </select>
-                    <input type="text" id="keyword-filter" placeholder="筛选产品关键词..." class="filter-input">
+                    <input type="text" id="keyword-filter" placeholder="Filter product keywords..." class="filter-input">
                 </div>
                 
                 <div id="search-list" class="search-list">
-                    <!-- 搜索记录将动态插入这里 -->
+                    <!-- Search records will be dynamically inserted here -->
                 </div>
             </section>
 
-            <!-- 产品详情 -->
+            <!-- Product Details -->
             <section id="product-detail" class="product-detail hidden">
                 <div class="detail-header">
-                    <button id="back-to-list" class="back-btn">← 返回列表</button>
-                    <h2 id="product-name">产品详情</h2>
+                    <button id="back-to-list" class="back-btn">← Back to List</button>
+                    <h2 id="product-name">Product Details</h2>
                 </div>
                 
-                <!-- 产品基本信息 -->
+                <!-- Search Information -->
                 <div class="product-info">
                     <div class="info-card">
-                        <h3>基本信息</h3>
+                        <h3>Search Information</h3>
                         <div class="info-grid">
                             <div class="info-item">
-                                <label>产品名称：</label>
-                                <span id="detail-name"></span>
+                                <label>Search Keywords:</label>
+                                <span id="search-keywords"></span>
                             </div>
                             <div class="info-item">
-                                <label>分类：</label>
-                                <span id="detail-category"></span>
+                                <label>Date Range:</label>
+                                <span id="search-date-range"></span>
                             </div>
                             <div class="info-item">
-                                <label>描述：</label>
-                                <span id="detail-description"></span>
+                                <label>Target Categories:</label>
+                                <span id="search-categories"></span>
                             </div>
                             <div class="info-item">
-                                <label>官方网站：</label>
-                                <a id="detail-url" href="#" target="_blank">访问网站</a>
+                                <label>Task ID:</label>
+                                <span id="search-task-id"></span>
                             </div>
                         </div>
                     </div>
                     
-                    <!-- 社交数据汇总 -->
+                    <!-- Product Basic Information -->
+                    <div class="info-card">
+                        <h3>Product Information</h3>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <label>Product Name:</label>
+                                <span id="detail-name"></span>
+                            </div>
+                            <div class="info-item">
+                                <label>Category:</label>
+                                <span id="detail-category"></span>
+                            </div>
+                            <div class="info-item">
+                                <label>Description:</label>
+                                <span id="detail-description"></span>
+                            </div>
+                            <div class="info-item">
+                                <label>Official Website:</label>
+                                <a id="detail-url" href="#" target="_blank">Visit Website</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Social Data Summary -->
                     <div class="social-summary">
-                        <h3>社交数据汇总</h3>
+                        <h3>Social Data Summary</h3>
                         <div class="metrics-grid">
                             <div class="metric-card">
                                 <div class="metric-value" id="total-posts">0</div>
-                                <div class="metric-label">相关推文</div>
+                                <div class="metric-label">Related Posts</div>
                             </div>
                             <div class="metric-card">
                                 <div class="metric-value" id="total-likes">0</div>
-                                <div class="metric-label">总点赞</div>
+                                <div class="metric-label">Total Likes</div>
                             </div>
                             <div class="metric-card">
                                 <div class="metric-value" id="total-retweets">0</div>
-                                <div class="metric-label">总转发</div>
+                                <div class="metric-label">Total Retweets</div>
                             </div>
                             <div class="metric-card">
                                 <div class="metric-value" id="total-replies">0</div>
-                                <div class="metric-label">总回复</div>
+                                <div class="metric-label">Total Replies</div>
                             </div>
                             <div class="metric-card">
                                 <div class="metric-value" id="total-views">0</div>
-                                <div class="metric-label">总浏览</div>
+                                <div class="metric-label">Total Views</div>
                             </div>
                         </div>
                     </div>
                 </div>
                 
-                <!-- 相关推文列表 -->
+                <!-- Related Posts List -->
                 <div class="posts-section">
                     <div class="section-header">
-                        <h3>相关推文</h3>
-                        <button id="refresh-posts" class="refresh-btn">🔄 刷新数据</button>
+                        <h3>Related Posts</h3>
+                        <button id="refresh-posts" class="refresh-btn">🔄 Refresh Data</button>
                     </div>
                     <div id="posts-list" class="posts-list">
-                        <!-- 推文列表将动态插入这里 -->
+                        <!-- Posts list will be dynamically inserted here -->
                     </div>
                 </div>
             </section>
         </main>
 
         <footer>
-            <p>智能AI产品发现 | 助力创新者洞察行业趋势</p>
+            <p>Smart AI Product Discovery | Empowering Innovators with Industry Insights</p>
         </footer>
     </div>
 
-    <!-- 搜索记录模板 -->
+    <!-- Search Record Template -->
     <template id="search-record-template">
         <div class="search-record">
             <div class="record-header">
@@ -128,17 +151,17 @@
                     </div>
                 </div>
                 <div class="record-actions">
-                    <button class="view-products-btn">查看产品</button>
-                    <button class="delete-record-btn" title="删除搜索记录">🗑️</button>
+                    <button class="view-products-btn">View Products</button>
+                    <button class="delete-record-btn" title="Delete Search Record">🗑️</button>
                 </div>
             </div>
             <div class="products-preview hidden">
-                <!-- 产品预览将插入这里 -->
+                <!-- Product preview will be inserted here -->
             </div>
         </div>
     </template>
 
-    <!-- 推文模板 -->
+    <!-- Post Template -->
     <template id="post-template">
         <div class="post-item">
             <div class="post-header">
@@ -153,7 +176,7 @@
                 <span class="metric">👁️ <span class="views">0</span></span>
             </div>
             <div class="post-link">
-                <a href="#" target="_blank">查看原推文</a>
+                <a href="#" target="_blank">View Original Post</a>
             </div>
         </div>
     </template>

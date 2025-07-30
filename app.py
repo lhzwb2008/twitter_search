@@ -146,6 +146,59 @@ def get_db_connection():
         if connection:
             connection.close()
 
+def cleanup_stale_tasks():
+    """清理长时间运行的失效任务"""
+    try:
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                # 查找超过30分钟仍在运行的任务
+                cursor.execute("""
+                    UPDATE search_records 
+                    SET status = 'failed' 
+                    WHERE status = 'running' 
+                    AND created_at < DATE_SUB(NOW(), INTERVAL 30 MINUTE)
+                """)
+                
+                updated_count = cursor.rowcount
+                if updated_count > 0:
+                    connection.commit()
+                    print(f"清理了 {updated_count} 个长时间运行的失效任务")
+                else:
+                    print("没有发现需要清理的失效任务")
+                    
+    except Exception as e:
+        print(f"清理失效任务失败: {e}")
+
+def migrate_database():
+    """迁移数据库，移除search_key的唯一约束"""
+    try:
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                # 检查是否存在unique_search约束
+                cursor.execute("""
+                    SELECT CONSTRAINT_NAME 
+                    FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+                    WHERE TABLE_SCHEMA = %s 
+                    AND TABLE_NAME = 'search_records' 
+                    AND CONSTRAINT_NAME = 'unique_search'
+                """, (MYSQL_CONFIG['database'],))
+                
+                constraint_exists = cursor.fetchone()
+                
+                if constraint_exists:
+                    print("正在移除search_key的唯一约束...")
+                    # 移除唯一约束
+                    cursor.execute("ALTER TABLE search_records DROP INDEX unique_search")
+                    # 添加普通索引
+                    cursor.execute("ALTER TABLE search_records ADD INDEX idx_search_key (search_key)")
+                    connection.commit()
+                    print("数据库迁移完成：已移除search_key唯一约束")
+                else:
+                    print("search_key唯一约束不存在，无需迁移")
+                    
+    except Exception as e:
+        print(f"数据库迁移失败: {e}")
+
 def init_database():
     """初始化数据库和表结构"""
     try:
@@ -189,7 +242,7 @@ def init_database():
                         total_products INT DEFAULT 0 COMMENT '找到的产品总数',
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                        UNIQUE KEY unique_search (search_key),
+                        INDEX idx_search_key (search_key),
                         INDEX idx_date_range (start_date, end_date),
                         INDEX idx_status (status)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -359,6 +412,32 @@ def save_search_results(task_id, status, products_data):
                 
                 if not search_record:
                     print(f"[DEBUG] 未找到task_id为{task_id}的搜索记录")
+                    # 查看数据库中所有的task_id，用于调试
+                    cursor.execute("SELECT task_id, status, created_at FROM search_records ORDER BY created_at DESC LIMIT 5")
+                    all_records = cursor.fetchall()
+                    print(f"[DEBUG] 数据库中最近的搜索记录:")
+                    for record in all_records:
+                        print(f"[DEBUG] - task_id: {record[0]}, status: {record[1]}, created_at: {record[2]}")
+                    
+                    # 尝试创建一个搜索记录（如果完全没有的话）
+                    print(f"[DEBUG] 尝试为task_id {task_id} 创建搜索记录")
+                    try:
+                        cursor.execute("""
+                            INSERT INTO search_records (task_id, search_key, keywords, start_date, end_date, categories, status, total_products)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (task_id, f"auto_{task_id}", json.dumps(["AI app"]), "2025-06-01", "2025-07-01", json.dumps(["Productivity"]), 'running', 0))
+                        connection.commit()
+                        print(f"[DEBUG] 成功创建搜索记录")
+                        
+                        # 重新查询
+                        cursor.execute("SELECT id FROM search_records WHERE task_id = %s", (task_id,))
+                        search_record = cursor.fetchone()
+                    except Exception as e:
+                        print(f"[DEBUG] 创建搜索记录失败: {e}")
+                        return
+                
+                if not search_record:
+                    print(f"[DEBUG] 仍然无法找到或创建搜索记录")
                     return
                 
                 search_id = search_record[0]
@@ -533,7 +612,9 @@ def search():
         search_params = data.get('search_params', {})
         start_date = search_params.get('start_date', '2025-06-01')
         end_date = search_params.get('end_date', '2025-07-01')
-        keywords = search_params.get('keywords', [])
+        keywords_raw = search_params.get('keywords', [])
+        # 确保关键词不为空，如果为空则使用默认值
+        keywords = keywords_raw if keywords_raw and len(keywords_raw) > 0 else ['AI app']
         categories = search_params.get('categories', [])
         
         # 构建关键词字符串
@@ -567,49 +648,22 @@ Start searching!
             # 创建搜索记录
             try:
                 import hashlib
-                search_key = hashlib.md5(f"{keyword_str}_{start_date}_{end_date}".encode()).hexdigest()
+                import time
+                # 使用时间戳确保每次搜索都有唯一的search_key
+                timestamp = str(int(time.time() * 1000))  # 毫秒级时间戳
+                search_key = hashlib.md5(f"{keyword_str}_{start_date}_{end_date}_{timestamp}".encode()).hexdigest()
                 
                 print(f"[DEBUG] 准备创建搜索记录，task_id: {task_id}, search_key: {search_key}")
                 
                 with get_db_connection() as connection:
                     with connection.cursor() as cursor:
-                        # 先检查是否已存在相同的搜索记录
+                        # 直接创建新的搜索记录，不再检查重复
                         cursor.execute("""
-                            SELECT id, task_id, status FROM search_records 
-                            WHERE search_key = %s
-                        """, (search_key,))
-                        existing_record = cursor.fetchone()
-                        
-                        if existing_record:
-                            existing_id, existing_task_id, existing_status = existing_record
-                            print(f"[DEBUG] 发现重复搜索记录，ID: {existing_id}, 原task_id: {existing_task_id}, 状态: {existing_status}")
-                            
-                            # 如果之前的搜索已完成或失败，更新为新的task_id
-                            if existing_status in ['completed', 'failed']:
-                                cursor.execute("""
-                                    UPDATE search_records 
-                                    SET task_id = %s, status = 'running', total_products = 0, 
-                                        updated_at = CURRENT_TIMESTAMP
-                                    WHERE id = %s
-                                """, (task_id, existing_id))
-                                connection.commit()
-                                print(f"[DEBUG] 更新搜索记录成功，新task_id: {task_id}")
-                            else:
-                                # 如果之前的搜索还在进行中，返回错误
-                                print(f"[DEBUG] 相同搜索正在进行中，task_id: {existing_task_id}")
-                                return jsonify({
-                                    'error': '相同的搜索正在进行中，请等待完成或查看结果页面',
-                                    'existing_task_id': existing_task_id,
-                                    'redirect_to_results': True
-                                }), 409
-                        else:
-                            # 创建新的搜索记录
-                            cursor.execute("""
-                                INSERT INTO search_records (task_id, search_key, keywords, start_date, end_date, categories, status, total_products)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                            """, (task_id, search_key, json.dumps(keywords), start_date, end_date, json.dumps(categories), 'running', 0))
-                            connection.commit()
-                            print(f"[DEBUG] 创建新搜索记录成功，task_id: {task_id}")
+                            INSERT INTO search_records (task_id, search_key, keywords, start_date, end_date, categories, status, total_products)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (task_id, search_key, json.dumps(keywords), start_date, end_date, json.dumps(categories), 'running', 0))
+                        connection.commit()
+                        print(f"[DEBUG] 创建新搜索记录成功，task_id: {task_id}")
             except Exception as e:
                 print(f"[DEBUG] 创建搜索记录失败: {e}")
                 # 即使数据库记录创建失败，也继续返回task_id，因为browser-use任务已经启动
@@ -650,10 +704,12 @@ def task_status(task_id):
                         output_files_content[filename] = file_content
                         print(f"[DEBUG] 成功获取文件 {filename} 的内容")
                     else:
+                        output_files_content[filename] = f"File '{filename}' not found on server"
                         print(f"[DEBUG] 无法获取文件 {filename} 的内容")
         
         # 尝试解析产品数据（如果有JSON结果的话）
         products_data = None
+        execution_error = None
         try:
             products_data = parse_task_result(result)
             products_count = len(products_data.get('products', []))
@@ -661,8 +717,14 @@ def task_status(task_id):
                 print(f"[DEBUG] 成功解析出 {products_count} 个产品")
                 # 保存到数据库
                 save_search_results(task_id, status, products_data)
+            else:
+                # 检查是否是执行中断的情况
+                execution_error = detect_execution_issues(result)
+                if execution_error:
+                    print(f"[DEBUG] 检测到执行问题: {execution_error}")
         except Exception as e:
             print(f"[DEBUG] 解析产品数据失败: {e}")
+            execution_error = f"数据解析失败: {str(e)}"
         
         # 返回完整的原始输出内容
         response_data = {
@@ -675,7 +737,8 @@ def task_status(task_id):
             'browser_data': result.get('browser_data', {}),  # 浏览器数据
             'metadata': result.get('metadata', {}),  # 元数据
             'created_at': result.get('created_at', ''),
-            'finished_at': result.get('finished_at', '')
+            'finished_at': result.get('finished_at', ''),
+            'execution_error': execution_error  # 执行错误信息
         }
         
         # 如果成功解析出产品数据，也包含在响应中
@@ -924,19 +987,73 @@ def get_search_products(search_id):
     except Exception as e:
         return jsonify({'error': f'获取产品列表失败: {str(e)}'}), 500
 
+@app.route('/api/task/<task_id>/products', methods=['GET'])
+def get_task_products(task_id):
+    """根据task_id获取已入库的产品数据，用于在搜索页面展示结果"""
+    try:
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                # 首先根据task_id找到搜索记录
+                cursor.execute("SELECT id FROM search_records WHERE task_id = %s", (task_id,))
+                search_record = cursor.fetchone()
+                
+                if not search_record:
+                    return jsonify({'products': [], 'message': '未找到对应的搜索记录'})
+                
+                search_id = search_record[0]
+                
+                # 获取该搜索的产品列表
+                cursor.execute("""
+                    SELECT id, name, description, category, official_url, 
+                           first_post_url, total_likes, total_retweets, total_replies, total_views
+                    FROM products 
+                    WHERE search_id = %s
+                    ORDER BY total_likes + total_retweets DESC
+                """, (search_id,))
+                
+                products = []
+                for row in cursor.fetchall():
+                    # 转换为与搜索页面兼容的格式
+                    products.append({
+                        'id': row[0],
+                        'name': row[1],
+                        'description': row[2] or 'No description available',
+                        'category': row[3] or 'Uncategorized',
+                        'url': row[4] or '',  # 官方网站
+                        'post_url': row[5] or '',  # 首次发现的推文链接
+                        'metrics': {
+                            'likes': row[6] or 0,
+                            'retweets': row[7] or 0,
+                            'replies': row[8] or 0,
+                            'views': row[9] or 0
+                        }
+                    })
+                
+                return jsonify({
+                    'products': products,
+                    'total_found': len(products),
+                    'summary': f'成功找到 {len(products)} 个AI产品并已保存到数据库'
+                })
+                
+    except Exception as e:
+        print(f"[DEBUG] 获取任务产品失败: {e}")
+        return jsonify({'error': f'获取产品数据失败: {str(e)}'}), 500
+
 @app.route('/api/products/<int:product_id>', methods=['GET'])
 def get_product_detail(product_id):
     """获取产品详情"""
     try:
         with get_db_connection() as connection:
             with connection.cursor() as cursor:
-                # 获取产品基本信息
+                # 获取产品基本信息和相关搜索记录信息
                 cursor.execute("""
-                    SELECT id, name, description, category, official_url, 
-                           first_post_url, deep_search_completed, total_likes, 
-                           total_retweets, total_replies, total_views, total_posts
-                    FROM products 
-                    WHERE id = %s
+                    SELECT p.id, p.name, p.description, p.category, p.official_url, 
+                           p.first_post_url, p.deep_search_completed, p.total_likes, 
+                           p.total_retweets, p.total_replies, p.total_views, p.total_posts,
+                           s.keywords, s.start_date, s.end_date, s.categories, s.task_id
+                    FROM products p
+                    JOIN search_records s ON p.search_id = s.id
+                    WHERE p.id = %s
                 """, (product_id,))
                 
                 product_row = cursor.fetchone()
@@ -955,7 +1072,14 @@ def get_product_detail(product_id):
                     'total_retweets': product_row[8],
                     'total_replies': product_row[9],
                     'total_views': product_row[10],
-                    'total_posts': product_row[11]
+                    'total_posts': product_row[11],
+                    'search_info': {
+                        'keywords': json.loads(product_row[12]),
+                        'start_date': product_row[13].isoformat(),
+                        'end_date': product_row[14].isoformat(),
+                        'categories': json.loads(product_row[15]),
+                        'task_id': product_row[16]
+                    }
                 }
                 
                 # 获取相关推文
@@ -1554,7 +1678,7 @@ def get_output_file_content(task_id, filename):
         # 如果是404错误，说明文件不存在
         if response.status_code == 404:
             print(f"[DEBUG] 文件 {filename} 不存在 (404)")
-            return f"File '{filename}' not found on server"
+            return None
         
         response.raise_for_status()
         
@@ -1567,10 +1691,10 @@ def get_output_file_content(task_id, filename):
             return response.text
     except requests.exceptions.RequestException as e:
         print(f"[DEBUG] 获取文件 {filename} 内容失败: {e}")
-        return f"Error fetching file '{filename}': {str(e)}"
+        return None
     except Exception as e:
         print(f"[DEBUG] 处理文件 {filename} 内容时出错: {e}")
-        return f"Error processing file '{filename}': {str(e)}"
+        return None
 
 def recover_data_from_logs(result):
     """从执行日志中恢复数据"""
@@ -2086,6 +2210,40 @@ def parse_text_description(text):
         'total_found': total_found
     }
 
+def detect_execution_issues(result):
+    """检测任务执行中的问题，返回错误描述"""
+    if not result:
+        return "任务结果为空"
+    
+    # 检查步骤中是否有执行中断的迹象
+    steps = result.get('steps', [])
+    if steps:
+        last_step = steps[-1]
+        if last_step:
+            # 检查最后一步的评估信息
+            evaluation = last_step.get('evaluation_previous_goal', '')
+            next_goal = last_step.get('next_goal', '')
+            
+            # 常见的执行中断关键词
+            stop_keywords = [
+                'execution stopped', 'stopped', 'failed', 'error', 
+                '执行停止', '执行中断', '失败', '错误'
+            ]
+            
+            for keyword in stop_keywords:
+                if keyword.lower() in evaluation.lower() or keyword.lower() in next_goal.lower():
+                    return f"任务执行中断: {evaluation or next_goal}"
+    
+    # 检查输出是否为空但状态为finished
+    if result.get('status') == 'finished' and not result.get('output'):
+        return "任务虽然完成但未产生有效输出"
+    
+    # 检查是否有错误信息
+    if 'error' in result:
+        return f"任务执行错误: {result.get('error')}"
+    
+    return None
+
 def extract_intermediate_progress(result):
     """从运行中的任务中提取中间进度数据"""
     if not result:
@@ -2137,6 +2295,12 @@ if __name__ == '__main__':
     try:
         init_database()
         print("数据库初始化成功！")
+        
+        # 执行数据库迁移
+        migrate_database()
+        
+        # 清理失效任务
+        cleanup_stale_tasks()
     except Exception as e:
         print(f"数据库初始化失败: {e}")
         print("应用将继续运行，但分类管理功能可能无法正常工作")

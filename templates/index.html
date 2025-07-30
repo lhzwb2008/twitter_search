@@ -196,10 +196,7 @@
                     <div class="total-count"></div>
                 </div>
                 
-                <div class="results-stats">
-                    <span class="product-count">Found 0 products</span>
-                    <span class="search-note"></span>
-                </div>
+                <!-- 移除重复的产品计数显示，因为搜索总结部分已经包含了 -->
                 <div id="products-grid" class="products-grid">
                     <!-- 产品卡片将动态插入这里 -->
                 </div>
@@ -210,13 +207,6 @@
                     <p class="note-text"></p>
                 </div>
             </section>
-
-            <!-- 加载提示 -->
-            <div id="loading" class="loading hidden">
-                <div class="spinner"></div>
-                <p class="loading-text">🔍 AI is searching...</p>
-                <p class="loading-hint">Estimated time: 10 minutes, you can do other things ☕</p>
-            </div>
         </main>
 
         <footer>
@@ -258,9 +248,10 @@
             <div class="product-links">
                 <a href="#" class="product-url" target="_blank">Visit Product</a>
                 <a href="#" class="post-url" target="_blank">View Tweets</a>
+                <a href="#" class="detail-url" target="_blank">View Details</a>
             </div>
             <div class="product-source">
-                <span class="source-tag">Normal Search</span>
+                <span class="source-tag">AI Product Discovery</span>
             </div>
         </article>
     </template>

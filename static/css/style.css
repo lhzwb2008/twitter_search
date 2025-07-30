@@ -562,16 +562,19 @@ button:disabled {
 /* 产品链接 */
 .product-links {
     display: flex;
-    gap: 1rem;
+    gap: 0.5rem;
+    flex-wrap: wrap;
 }
 
 .product-links a {
     flex: 1;
+    min-width: 100px;
     text-align: center;
-    padding: 0.5rem 1rem;
-    border-radius: 8px;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
     text-decoration: none;
     font-weight: 500;
+    font-size: 0.875rem;
     transition: all 0.2s;
 }
 
@@ -592,6 +595,15 @@ button:disabled {
 
 .post-url:hover {
     background-color: var(--background);
+}
+
+.detail-url {
+    background-color: var(--success-color);
+    color: white;
+}
+
+.detail-url:hover {
+    background-color: #059669;
 }
 
 /* 置灰的链接 */
@@ -881,6 +893,90 @@ button:disabled {
     border: 2px dashed var(--border-color);
 }
 
+/* 错误提示样式 */
+.alert {
+    margin: 1.5rem 0;
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 4px solid;
+    background-color: var(--surface);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.alert-warning {
+    border-left-color: #f59e0b;
+    background-color: #fef3cd;
+    color: #92400e;
+}
+
+.alert-error {
+    border-left-color: #ef4444;
+    background-color: #fee2e2;
+    color: #dc2626;
+}
+
+.alert-content {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.alert-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.alert-text {
+    flex: 1;
+}
+
+.alert-text strong {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.alert-text p {
+    margin: 0 0 1rem 0;
+    line-height: 1.5;
+}
+
+.alert-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.retry-btn, .dismiss-btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.retry-btn.primary {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.retry-btn.primary:hover {
+    background-color: var(--primary-hover);
+}
+
+.dismiss-btn.secondary {
+    background-color: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.dismiss-btn.secondary:hover {
+    background-color: var(--background);
+    color: var(--text-primary);
+}
+
 /* 结果页面样式 */
 .search-history {
     margin-bottom: 3rem;
@@ -909,13 +1005,36 @@ button:disabled {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+    max-height: 600px;
+    overflow-y: auto;
+    padding-right: 10px;
+    scroll-behavior: smooth;
+}
+
+/* 自定义滚动条样式 */
+.search-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.search-list::-webkit-scrollbar-track {
+    background: var(--background);
+    border-radius: 4px;
+}
+
+.search-list::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+.search-list::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-color);
 }
 
 .search-record {
     background-color: var(--surface);
     border-radius: 8px;
     border: 1px solid var(--border-color);
-    overflow: hidden;
+    overflow: visible; /* 允许内容完整显示 */
     transition: all 0.2s;
 }
 
@@ -927,14 +1046,24 @@ button:disabled {
 .record-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     padding: 1.5rem;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.record-info {
+    flex: 1;
+    min-width: 0; /* 允许收缩 */
+    overflow: visible; /* 确保内容可见 */
 }
 
 .record-info h4 {
     margin: 0 0 0.5rem 0;
     font-size: 1.2rem;
     color: var(--text-primary);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 .record-meta {
@@ -942,6 +1071,20 @@ button:disabled {
     gap: 1rem;
     font-size: 0.9rem;
     color: var(--text-secondary);
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.record-meta span {
+    /* 移除文本截断，让内容完整显示 */
+}
+
+.record-date {
+    flex-shrink: 0;
+}
+
+.record-count {
+    flex-shrink: 0;
 }
 
 .record-status {
@@ -990,6 +1133,7 @@ button:disabled {
     display: flex;
     align-items: center;
     gap: 0.75rem;
+    flex-shrink: 0;
 }
 
 .delete-record-btn {
@@ -1044,8 +1188,8 @@ button:disabled {
 }
 
 .product-info {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 2rem;
     margin-bottom: 3rem;
 }
@@ -1372,6 +1516,130 @@ footer a:hover {
     border: 2px dashed #e5e7eb;
 }
 
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .record-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+    }
+    
+    .record-info {
+        min-width: auto;
+    }
+    
+    .record-actions {
+        justify-content: flex-end;
+        width: 100%;
+    }
+    
+    .view-products-btn {
+        flex: 1;
+        min-width: auto;
+        max-width: 200px;
+    }
+    
+    .record-meta {
+        gap: 0.75rem;
+    }
+    
+    .record-meta span {
+        font-size: 0.85rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .record-header {
+        padding: 1rem;
+    }
+    
+    .record-info h4 {
+        font-size: 1.1rem;
+    }
+    
+    .record-meta {
+        flex-direction: column;
+        gap: 0.5rem;
+        align-items: flex-start;
+    }
+    
+    .view-products-btn {
+        padding: 0.6rem 1rem;
+        font-size: 0.85rem;
+    }
+}
+
+/* 提示信息样式 */
+.alert {
+    border-radius: 8px;
+    margin: 1rem 0;
+    padding: 1rem;
+    border: 1px solid;
+}
+
+.alert-info {
+    background-color: #dbeafe;
+    border-color: #3b82f6;
+    color: #1e40af;
+}
+
+.alert-warning {
+    background-color: #fef3c7;
+    border-color: #f59e0b;
+    color: #92400e;
+}
+
+.alert-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.alert-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.alert-text {
+    flex: 1;
+}
+
+.alert-text strong {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+}
+
+.alert-text p {
+    margin: 0.5rem 0;
+    line-height: 1.5;
+}
+
+.alert-text ul {
+    line-height: 1.4;
+}
+
+.alert-action-btn {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    white-space: nowrap;
+    margin-left: 1rem;
+    align-self: flex-start;
+}
+
+.alert-action-btn:hover {
+    background-color: #1d4ed8;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
 /* 任务状态区域 */
 .task-status {
     background: var(--card-bg);
@@ -1574,6 +1842,27 @@ footer a:hover {
 .steps-list {
     max-height: 400px;
     overflow-y: auto;
+    scroll-behavior: smooth;
+    padding-right: 10px;
+}
+
+/* 自定义步骤列表滚动条样式 */
+.steps-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.steps-list::-webkit-scrollbar-track {
+    background: var(--background);
+    border-radius: 4px;
+}
+
+.steps-list::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+.steps-list::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-color);
 }
 
 .step-item {
@@ -1584,6 +1873,30 @@ footer a:hover {
     border-radius: 6px;
     border-left: 4px solid #28a745;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    position: relative;
+}
+
+/* 最新步骤的样式 */
+.step-item.latest-step {
+    background: #f8f9ff;
+    border-left-color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+}
+
+.step-item.latest-step .step-number {
+    background: var(--primary-color);
+}
+
+.latest-indicator {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: var(--primary-color);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 0.7em;
+    font-weight: bold;
 }
 
 .step-number {
