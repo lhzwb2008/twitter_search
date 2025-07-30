@@ -38,7 +38,7 @@ if pgrep -f "python3 app.py" > /dev/null; then
         pkill -f "python3 app.py"
         sleep 2
     else
-        echo "📍 访问地址: http://localhost:3000"
+        echo "📍 访问地址: http://localhost:8080"
         echo "💡 如需停止应用，请运行: pkill -f 'python3 app.py'"
         exit 0
     fi
@@ -46,7 +46,7 @@ fi
 
 # 启动应用
 echo "🌐 启动Web服务器（后台运行）..."
-echo "📍 访问地址: http://localhost:3000"
+echo "📍 访问地址: http://localhost:8080"
 echo "📝 日志文件: nohup.out"
 echo "🛑 停止应用: pkill -f 'python3 app.py'"
 echo ""
@@ -63,4 +63,4 @@ echo ""
 echo "💡 常用命令："
 echo "   查看日志: tail -f nohup.out"
 echo "   停止应用: pkill -f 'python3 app.py'"
-echo "   查看进程: pgrep -f 'python3 app.py'" 
+echo "   查看进程: pgrep -f 'python3 app.py'"

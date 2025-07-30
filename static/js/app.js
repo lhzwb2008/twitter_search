@@ -516,10 +516,94 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         });
     }
     
+    // 恢复上次的搜索参数
+    function restoreLastSearchParams() {
+        try {
+            const savedData = localStorage.getItem('lastSearchParams');
+            if (!savedData) {
+                console.log('No saved search parameters found');
+                return false;
+            }
+
+            const searchFormData = JSON.parse(savedData);
+            console.log('Restoring search parameters:', searchFormData);
+
+            // 恢复日期
+            if (searchFormData.searchParams.start_date) {
+                document.getElementById('start-date').value = searchFormData.searchParams.start_date;
+            }
+            if (searchFormData.searchParams.end_date) {
+                document.getElementById('end-date').value = searchFormData.searchParams.end_date;
+            }
+
+            // 恢复结果限制
+            if (searchFormData.resultLimit) {
+                document.getElementById('result-limit').value = searchFormData.resultLimit;
+            }
+
+            // 恢复自定义Prompt
+            if (searchFormData.customPrompt) {
+                document.getElementById('custom-prompt').value = searchFormData.customPrompt;
+            }
+
+            // 恢复关键词标签
+            const keywordsContainer = document.getElementById('keywords-tags');
+            keywordsContainer.innerHTML = ''; // 清空现有标签
+            if (searchFormData.searchParams.keywords) {
+                searchFormData.searchParams.keywords.forEach(keyword => {
+                    addTag(keywordsContainer, keyword);
+                });
+            }
+
+            // 恢复排除公司标签
+            const excludeContainer = document.getElementById('exclude-companies-tags');
+            excludeContainer.innerHTML = ''; // 清空现有标签
+            if (searchFormData.excludeCompanies) {
+                searchFormData.excludeCompanies.forEach(company => {
+                    addTag(excludeContainer, company);
+                });
+            }
+
+            // 恢复分类选择
+            if (searchFormData.searchParams.categories) {
+                // 先取消所有选择
+                document.querySelectorAll('input[name="categories"]').forEach(cb => {
+                    cb.checked = false;
+                });
+                // 然后选择保存的分类
+                searchFormData.searchParams.categories.forEach(category => {
+                    const checkbox = document.querySelector(`input[name="categories"][value="${category}"]`);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                });
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Failed to restore search parameters:', error);
+            return false;
+        }
+    }
+
+    // 使用保存的参数重新搜索
+    function retryWithLastParams() {
+        const restored = restoreLastSearchParams();
+        if (restored) {
+            console.log('Parameters restored, triggering search...');
+            // 触发搜索
+            handleSearch({ preventDefault: () => {} });
+        } else {
+            // 如果没有保存的参数，就刷新页面
+            location.reload();
+        }
+    }
+
     // 将函数暴露到全局作用域，供HTML内联事件使用
     window.togglePresetCategory = togglePresetCategory;
     window.addCustomCategory = addCustomCategory;
     window.removeCustomCategory = removeCustomCategory;
+    window.retryWithLastParams = retryWithLastParams;
 
     // 处理搜索
     async function handleSearch(e) {
@@ -530,6 +614,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         // 收集搜索参数
         const formData = new FormData(searchForm);
         const keywords = getTagValues('keywords-tags');
+        const excludeCompanies = getTagValues('exclude-companies-tags');
         const searchParams = {
             keywords: keywords.length > 0 ? keywords : ['AI app'], // 确保至少有一个关键词
             start_date: formData.get('startDate') || '2025-06-01',
@@ -537,6 +622,16 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             categories: Array.from(document.querySelectorAll('input[name="categories"]:checked'))
                 .map(cb => cb.value)
         };
+
+        // 保存搜索参数到localStorage，包括更多表单数据
+        const searchFormData = {
+            searchParams: searchParams,
+            excludeCompanies: excludeCompanies,
+            resultLimit: formData.get('resultLimit'),
+            customPrompt: document.getElementById('custom-prompt').value.trim(),
+            prompt: prompt
+        };
+        localStorage.setItem('lastSearchParams', JSON.stringify(searchFormData));
 
         // 重置UI状态
         resetUI();
@@ -667,14 +762,9 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
                 displayTaskSteps(data.steps);
             }
             
-            // 不再显示Task Output和Output Files，因为Browser-Use Complete Results已经包含了所有信息
-            // 移除这些显示以简化界面
-
             // 如果返回了live_url，显示它
             if (data.live_url) {
                 console.log('[DEBUG] Showing live preview:', data.live_url);
-                
-                // 显示live_url
                 showLivePreview(data.live_url);
             } else {
                 console.log('[DEBUG] No live_url returned');
@@ -720,7 +810,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
                     loadDatabaseProducts(currentTaskId, statusText);
                 } else if (data.parsed_products && data.parsed_products.products && data.parsed_products.products.length > 0) {
                     // 有产品数据，认为任务成功
-                    displayResults(data.parsed_products, false, false);
+                    displaySearchResults(data.parsed_products, false, false);
                     statusText.textContent = '✅ 任务完成';
                     
                     // 显示Browser-Use完整结果（在显示产品后）
@@ -732,7 +822,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
                     // 显示Browser-Use完整结果（即使有错误）
                     displayBrowserUseResults(data);
                 } else if ((data.status === 'finished' || data.status === 'partial_success') && data.result) {
-                    displayResults(data.result, data.status === 'partial_success', data.recovered_from_logs);
+                    displaySearchResults(data.result, data.status === 'partial_success', data.recovered_from_logs);
                     
                     // 如果是部分成功，显示额外的提示信息
                     if (data.status === 'partial_success') {
@@ -865,9 +955,14 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
                     </ul>
                     <p><strong>Suggestion:</strong> Try refreshing the page and searching again with different keywords or date ranges.</p>
                 </div>
-                <button class="alert-action-btn" onclick="window.location.reload()">
-                    🔄 Refresh & Try Again
-                </button>
+                <div class="alert-actions">
+                    <button class="retry-btn primary" onclick="retryWithLastParams()">
+                        🔄 Retry with Last Parameters
+                    </button>
+                    <button class="retry-btn secondary" onclick="window.location.reload()">
+                        🔄 Try New Search
+                    </button>
+                </div>
             </div>
         `;
 
@@ -890,7 +985,8 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
                     <strong>任务执行遇到问题</strong>
                     <p>${errorMessage}</p>
                     <div class="alert-actions">
-                        <button onclick="location.reload()" class="retry-btn primary">🔄 刷新页面重试</button>
+                        <button onclick="retryWithLastParams()" class="retry-btn primary">🔄 Retry with Last Parameters</button>
+                        <button onclick="location.reload()" class="retry-btn secondary">🔄 Refresh Page</button>
                         <button onclick="this.parentElement.parentElement.parentElement.parentElement.remove()" class="dismiss-btn secondary">关闭提示</button>
                     </div>
                 </div>
@@ -963,7 +1059,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             
             if (response.ok && data.products && data.products.length > 0) {
                 console.log(`[DEBUG] 成功从数据库获取 ${data.products.length} 个产品`);
-                displayResults(data, false, false);
+                displaySearchResults(data, false, false);
                 statusText.textContent = `✅ 任务完成！已找到 ${data.products.length} 个AI产品并成功入库`;
                 
                 // 显示成功提示
@@ -1021,12 +1117,11 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         }
     }
 
-    // 显示搜索结果
-    function displayResults(data, isPartialSuccess = false, isRecovered = false) {
-        console.log('[DEBUG] displayResults called with data:', data);
+    // 显示搜索结果（重命名并调整位置）
+    function displaySearchResults(data, isPartialSuccess = false, isRecovered = false) {
+        console.log('[DEBUG] displaySearchResults called with data:', data);
         
         if (!data) {
-            resultsSection.classList.add('hidden');
             return;
         }
 
@@ -1036,71 +1131,171 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             progressSection.classList.add('hidden');
         }
 
-        // 清空现有结果
-        productsGrid.innerHTML = '';
-        console.log('[DEBUG] Cleared existing products grid');
+        // 创建或获取搜索结果容器
+        let searchResultsContainer = document.getElementById('search-results-container');
+        if (!searchResultsContainer) {
+            searchResultsContainer = document.createElement('div');
+            searchResultsContainer.id = 'search-results-container';
+            searchResultsContainer.className = 'search-results-container';
+            
+            // 插入到Task Execution Steps后面，Browser-Use Complete Results前面
+            const taskStepsContainer = document.getElementById('task-steps');
+            const browserUseContainer = document.getElementById('browser-use-results');
+            
+            if (taskStepsContainer && taskStepsContainer.parentNode) {
+                // 如果已经有browser-use结果容器，插入到它前面
+                if (browserUseContainer) {
+                    taskStepsContainer.parentNode.insertBefore(searchResultsContainer, browserUseContainer);
+                } else {
+                    // 否则插入到task steps后面
+                    taskStepsContainer.parentNode.insertBefore(searchResultsContainer, taskStepsContainer.nextSibling);
+                }
+            } else {
+                // 如果没有task steps，插入到任务状态区域后面
+                const taskStatus = document.getElementById('task-status');
+                if (taskStatus && taskStatus.parentNode) {
+                    taskStatus.parentNode.insertBefore(searchResultsContainer, taskStatus.nextSibling);
+                }
+            }
+        }
+
+        // 构建搜索结果HTML
+        let resultsHtml = `
+            <div class="search-results-header">
+                <h3>🔍 Search Results</h3>
+            </div>
+        `;
 
         // 显示搜索总结
-        const searchSummary = document.getElementById('search-summary');
         if (data.summary) {
-            const summaryText = searchSummary.querySelector('.summary-text');
-            const totalCount = searchSummary.querySelector('.total-count');
-            
             let summaryContent = data.summary;
             if (isRecovered) {
                 summaryContent += ' (数据来源：执行日志恢复)';
             }
             
-            summaryText.textContent = summaryContent;
+            let totalCount = '';
             if (data.total_found !== undefined) {
-                totalCount.textContent = `Found ${data.total_found} AI products`;
+                totalCount = `Found ${data.total_found} AI products`;
             } else if (data.products && data.products.length > 0) {
-                totalCount.textContent = `Found ${data.products.length} AI products`;
+                totalCount = `Found ${data.products.length} AI products`;
             } else {
-                totalCount.textContent = `No AI products found matching criteria`;
+                totalCount = `No AI products found matching criteria`;
             }
             
-            // 如果是恢复的数据，添加特殊样式
-            if (isRecovered) {
-                searchSummary.classList.add('recovered-data');
-            }
-            
-            searchSummary.classList.remove('hidden');
-        } else {
-            searchSummary.classList.add('hidden');
+            resultsHtml += `
+                <div class="search-summary">
+                    <h4>📊 Search Summary</h4>
+                    <p class="summary-text">${summaryContent}</p>
+                    <div class="total-count">${totalCount}</div>
+                </div>
+            `;
+        }
+
+        // 显示重复产品跳过信息
+        if (data.skipped_products && data.skipped_products.length > 0) {
+            resultsHtml += `
+                <div class="skipped-products-info">
+                    <h4>⚠️ Skipped Duplicate Products</h4>
+                    <p>The following products were found but skipped because they already exist in the database:</p>
+                    <ul class="skipped-products-list">
+                        ${data.skipped_products.map(product => `<li>${product}</li>`).join('')}
+                    </ul>
+                    <p class="skipped-count">Total skipped: ${data.skipped_products.length} products</p>
+                </div>
+            `;
         }
 
         // 显示产品列表
         if (data.products && data.products.length > 0) {
-            console.log(`[DEBUG] Displaying ${data.products.length} products`);
-            data.products.forEach((product, index) => {
-                console.log(`[DEBUG] Creating card for product ${index + 1}:`, product);
-                const productCard = createProductCard(product, isRecovered);
-                productsGrid.appendChild(productCard);
-            });
-            resultsSection.classList.remove('hidden');
-            console.log('[DEBUG] Results section made visible');
+            resultsHtml += `
+                <div class="products-section">
+                    <h4>✅ New Products Added (${data.products.length})</h4>
+                    <div class="products-grid">
+            `;
             
-            // 自动滚动到结果区域
-            setTimeout(() => {
-                resultsSection.scrollIntoView({ 
-                    behavior: 'smooth', 
-                    block: 'start' 
-                });
-            }, 500);
-        } else {
-            console.log('[DEBUG] No products to display, hiding results section');
-            resultsSection.classList.add('hidden');
+            data.products.forEach((product, index) => {
+                resultsHtml += createProductCardHtml(product, isRecovered);
+            });
+            
+            resultsHtml += `
+                    </div>
+                </div>
+            `;
         }
 
         // 显示备注
         if (data.note) {
-            const noteElement = document.getElementById('search-note');
-            if (noteElement) {
-                noteElement.textContent = data.note;
-                noteElement.classList.remove('hidden');
-            }
+            resultsHtml += `
+                <div class="search-note">
+                    <h4>ℹ️ Search Instructions</h4>
+                    <p>${data.note}</p>
+                </div>
+            `;
         }
+
+        searchResultsContainer.innerHTML = resultsHtml;
+        searchResultsContainer.style.display = 'block';
+        
+        // 自动滚动到搜索结果区域
+        setTimeout(() => {
+            searchResultsContainer.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start' 
+            });
+        }, 500);
+    }
+
+    // 创建产品卡片HTML
+    function createProductCardHtml(product, isRecovered = false) {
+        const metrics = product.metrics || {};
+        
+        // 处理产品链接
+        const productUrlDisabled = (!product.url || product.url.trim() === '' || product.url === '#' || product.url.includes('nitter')) ? 'disabled' : '';
+        const postUrlDisabled = (!product.post_url || product.post_url.trim() === '' || product.post_url === '#') ? 'disabled' : '';
+        const detailUrlDisabled = (!product.id) ? 'disabled' : '';
+        
+        const productUrl = productUrlDisabled ? '#' : product.url;
+        const postUrl = postUrlDisabled ? '#' : product.post_url;
+        const detailUrl = detailUrlDisabled ? '#' : `/results?product=${product.id}`;
+        
+        return `
+            <article class="product-card">
+                <div class="product-header">
+                    <h5 class="product-name">${product.name}</h5>
+                    <span class="product-category">${product.category}</span>
+                </div>
+                <p class="product-description">${product.description}</p>
+                <div class="product-metrics">
+                    <span class="metric likes">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                        </svg>
+                        <span class="count">${metrics.likes || 0}</span>
+                    </span>
+                    <span class="metric retweets">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M17 1l4 4-4 4"></path>
+                            <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                            <path d="M7 23l-4-4 4-4"></path>
+                            <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+                        </svg>
+                        <span class="count">${metrics.retweets || 0}</span>
+                    </span>
+                    <span class="metric replies">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                        <span class="count">${metrics.replies || 0}</span>
+                    </span>
+                </div>
+                <div class="product-links">
+                    <a href="${productUrl}" class="product-url ${productUrlDisabled}" target="_blank">Visit Product</a>
+                    <a href="${postUrl}" class="post-url ${postUrlDisabled}" target="_blank">View Tweets</a>
+                    <a href="${detailUrl}" class="detail-url ${detailUrlDisabled}" target="_blank">View Details</a>
+                </div>
+                ${isRecovered ? '<div class="product-source"><span class="source-tag recovered">Recovered from logs</span></div>' : ''}
+            </article>
+        `;
     }
 
     // 创建产品卡片
@@ -1571,6 +1766,12 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         const filesContentContainer = document.getElementById('output-files-content');
         if (filesContentContainer) {
             filesContentContainer.remove();
+        }
+        
+        // 清理搜索结果容器
+        const searchResultsContainer = document.getElementById('search-results-container');
+        if (searchResultsContainer) {
+            searchResultsContainer.remove();
         }
         
         // 清理 browser-use 结果

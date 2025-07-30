@@ -216,18 +216,24 @@ class ProductsManager {
         const postUrl = template.querySelector('.post-url');
         const detailUrl = template.querySelector('.detail-url');
         
-        if (product.url) {
+        // 处理产品链接（官方网站）
+        if (product.url && product.url.trim() && product.url !== '#' && !product.url.includes('nitter')) {
             productUrl.href = product.url;
-            productUrl.style.display = 'inline-block';
+            productUrl.classList.remove('disabled');
         } else {
-            productUrl.style.display = 'none';
+            productUrl.href = '#';
+            productUrl.classList.add('disabled');
+            productUrl.addEventListener('click', (e) => e.preventDefault());
         }
         
-        if (product.post_url) {
+        // 处理推文链接（Twitter/Nitter帖子）
+        if (product.post_url && product.post_url.trim() && product.post_url !== '#') {
             postUrl.href = product.post_url;
-            postUrl.style.display = 'inline-block';
+            postUrl.classList.remove('disabled');
         } else {
-            postUrl.style.display = 'none';
+            postUrl.href = '#';
+            postUrl.classList.add('disabled');
+            postUrl.addEventListener('click', (e) => e.preventDefault());
         }
         
         // 详情页面链接

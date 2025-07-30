@@ -2413,4 +2413,4 @@ if __name__ == '__main__':
         print("应用将继续运行，但分类管理功能可能无法正常工作")
     
     # 在生产环境中监听所有网络接口
-    app.run(debug=False, host='0.0.0.0', port=3000)
+    app.run(debug=False, host='0.0.0.0', port=8080)
