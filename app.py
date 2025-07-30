@@ -1252,6 +1252,7 @@ def get_months():
         with get_db_connection() as connection:
             with connection.cursor() as cursor:
                 # 查询所有搜索记录的日期范围，按月份分组统计
+                # 移除状态判断，只要有关联的产品就显示
                 query = """
                     SELECT 
                         DATE_FORMAT(sr.start_date, %s) as month,
@@ -1262,7 +1263,7 @@ def get_months():
                         MAX(sr.end_date) as latest_date
                     FROM search_records sr
                     LEFT JOIN products p ON sr.id = p.search_id
-                    WHERE sr.status = 'completed'
+                    WHERE EXISTS (SELECT 1 FROM products p2 WHERE p2.search_id = sr.id)
                     GROUP BY DATE_FORMAT(sr.start_date, %s), DATE_FORMAT(sr.start_date, %s)
                     ORDER BY month DESC
                 """
@@ -1295,6 +1296,7 @@ def get_products_by_month(month):
         with get_db_connection() as connection:
             with connection.cursor() as cursor:
                 # 查询指定月份的所有产品
+                # 移除状态判断，获取所有关联的产品
                 query = """
                     SELECT 
                         p.id, p.name, p.description, p.category, p.official_url,
@@ -1304,7 +1306,6 @@ def get_products_by_month(month):
                     FROM products p
                     JOIN search_records sr ON p.search_id = sr.id
                     WHERE DATE_FORMAT(sr.start_date, %s) = %s
-                    AND sr.status = 'completed'
                     ORDER BY p.total_likes + p.total_retweets DESC
                 """
                 cursor.execute(query, ('%Y%m', month))
