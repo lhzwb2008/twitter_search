@@ -602,6 +602,11 @@ def results():
     """结果展示页面"""
     return render_template('results.html')
 
+@app.route('/products')
+def products():
+    """按月份分类的产品展示页面"""
+    return render_template('products.html')
+
 @app.route('/api/search', methods=['POST'])
 def search():
     """启动搜索任务"""
@@ -1239,6 +1244,108 @@ IMPORTANT:
                     
     except Exception as e:
         return jsonify({'error': f'启动深度搜索失败: {str(e)}'}), 500
+
+@app.route('/api/months', methods=['GET'])
+def get_months():
+    """获取所有搜索月份列表"""
+    try:
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                # 查询所有搜索记录的日期范围，按月份分组统计
+                query = """
+                    SELECT 
+                        DATE_FORMAT(sr.start_date, %s) as month,
+                        DATE_FORMAT(sr.start_date, %s) as month_display,
+                        COUNT(DISTINCT sr.id) as search_count,
+                        COUNT(DISTINCT p.id) as product_count,
+                        MIN(sr.start_date) as earliest_date,
+                        MAX(sr.end_date) as latest_date
+                    FROM search_records sr
+                    LEFT JOIN products p ON sr.id = p.search_id
+                    WHERE sr.status = 'completed'
+                    GROUP BY DATE_FORMAT(sr.start_date, %s), DATE_FORMAT(sr.start_date, %s)
+                    ORDER BY month DESC
+                """
+                cursor.execute(query, ('%Y%m', '%Y-%m', '%Y%m', '%Y-%m'))
+                
+                months = []
+                for row in cursor.fetchall():
+                    months.append({
+                        'month': row[0],  # 202507
+                        'month_display': row[1],  # 2025-07
+                        'search_count': row[2],
+                        'product_count': row[3] or 0,
+                        'earliest_date': row[4].isoformat() if row[4] else None,
+                        'latest_date': row[5].isoformat() if row[5] else None
+                    })
+                
+                return jsonify({'months': months})
+                
+    except Exception as e:
+        return jsonify({'error': f'Failed to load months list: {str(e)}'}), 500
+
+@app.route('/api/months/<month>/products', methods=['GET'])
+def get_products_by_month(month):
+    """获取指定月份的所有产品"""
+    try:
+        # 验证月份格式 (YYYYMM)
+        if not month.isdigit() or len(month) != 6:
+            return jsonify({'error': 'Invalid month format, should be YYYYMM'}), 400
+        
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                # 查询指定月份的所有产品
+                query = """
+                    SELECT 
+                        p.id, p.name, p.description, p.category, p.official_url,
+                        p.first_post_url, p.total_likes, p.total_retweets, 
+                        p.total_replies, p.total_views, p.total_posts,
+                        sr.start_date, sr.end_date, sr.keywords
+                    FROM products p
+                    JOIN search_records sr ON p.search_id = sr.id
+                    WHERE DATE_FORMAT(sr.start_date, %s) = %s
+                    AND sr.status = 'completed'
+                    ORDER BY p.total_likes + p.total_retweets DESC
+                """
+                cursor.execute(query, ('%Y%m', month))
+                
+                products = []
+                for row in cursor.fetchall():
+                    products.append({
+                        'id': row[0],
+                        'name': row[1],
+                        'description': row[2] or 'No description available',
+                        'category': row[3] or 'Uncategorized',
+                        'url': row[4] or '',  # 官方网站
+                        'post_url': row[5] or '',  # 首次发现的推文链接
+                        'metrics': {
+                            'likes': row[6] or 0,
+                            'retweets': row[7] or 0,
+                            'replies': row[8] or 0,
+                            'views': row[9] or 0
+                        },
+                        'total_posts': row[10] or 1,
+                        'search_info': {
+                            'start_date': row[11].isoformat() if row[11] else None,
+                            'end_date': row[12].isoformat() if row[12] else None,
+                            'keywords': json.loads(row[13]) if row[13] else []
+                        }
+                    })
+                
+                # 格式化月份显示
+                year = month[:4]
+                month_num = month[4:]
+                month_display = f"{year}-{month_num.zfill(2)}"
+                
+                return jsonify({
+                    'month': month,
+                    'month_display': month_display,
+                    'products': products,
+                    'total_count': len(products)
+                })
+                
+    except Exception as e:
+        return jsonify({'error': f'Failed to load products for month: {str(e)}'}), 500
 
 def process_deep_search_result(task_id, product_id, posts_data):
     """处理深度搜索结果，保存推文并更新产品汇总数据"""

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Products - AI Product Discovery Platform</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Navigation Header -->
+        <nav class="navigation">
+            <div class="nav-brand">
+                <h1>🚀 AI Product Discovery Platform</h1>
+                <p class="subtitle">Discover the latest AI products and tools, insight into industry trends</p>
+            </div>
+            <div class="nav-links">
+                <a href="/" class="nav-link">Search</a>
+                <a href="/results" class="nav-link">Results</a>
+                <a href="/products" class="nav-link active">Products</a>
+            </div>
+        </nav>
+
+        <main>
+            <section class="products-page">
+                <h2>Products by Month</h2>
+                
+                <div class="products-layout">
+                    <!-- 左侧月份列表 -->
+                    <aside class="months-sidebar">
+                        <h3>Search Months</h3>
+                        <div id="months-list" class="months-list">
+                            <div class="loading-months">Loading months...</div>
+                        </div>
+                    </aside>
+                    
+                    <!-- 右侧产品展示区域 -->
+                    <main class="products-content">
+                        <div class="products-header">
+                            <h3 id="current-month-title">Select a month to view products</h3>
+                            <div class="products-stats">
+                                <span id="products-count">0 products</span>
+                            </div>
+                        </div>
+                        
+                        <div id="products-container" class="products-container">
+                            <div class="empty-state">
+                                <div class="empty-icon">📅</div>
+                                <h4>Select a Month</h4>
+                                <p>Choose a month from the left sidebar to view all products discovered in that time period.</p>
+                            </div>
+                        </div>
+                        
+                        <!-- 加载状态 -->
+                        <div id="loading-products" class="loading-state hidden">
+                            <div class="loading-spinner"></div>
+                            <p>Loading products...</p>
+                        </div>
+                    </main>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Smart AI Product Discovery | Empowering Innovators to Insight Industry Trends</p>
+        </footer>
+    </div>
+
+    <!-- 月份项目模板 -->
+    <template id="month-item-template">
+        <div class="month-item" data-month="">
+            <div class="month-info">
+                <div class="month-name"></div>
+                <div class="month-stats">
+                    <span class="product-count">0 products</span>
+                    <span class="search-count">0 searches</span>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- 产品卡片模板 -->
+    <template id="product-card-template">
+        <article class="product-card">
+            <div class="product-header">
+                <h3 class="product-name"></h3>
+                <span class="product-category"></span>
+            </div>
+            <p class="product-description"></p>
+            <div class="product-metrics">
+                <span class="metric likes">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                    </svg>
+                    <span class="count">0</span>
+                </span>
+                <span class="metric retweets">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M17 1l4 4-4 4"></path>
+                        <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                        <path d="M7 23l-4-4 4-4"></path>
+                        <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+                    </svg>
+                    <span class="count">0</span>
+                </span>
+                <span class="metric replies">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    <span class="count">0</span>
+                </span>
+            </div>
+            <div class="product-links">
+                <a href="#" class="product-url" target="_blank">Visit Product</a>
+                <a href="#" class="post-url" target="_blank">View Tweets</a>
+                <a href="#" class="detail-url" target="_blank">View Details</a>
+            </div>
+            <div class="product-source">
+                <span class="search-date"></span>
+            </div>
+        </article>
+    </template>
+
+    <script src="{{ url_for('static', filename='js/products.js') }}"></script>
+</body>
+</html> 
