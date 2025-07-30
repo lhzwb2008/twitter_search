@@ -690,6 +690,9 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
                 clearInterval(statusCheckInterval);
                 statusCheckInterval = null;
                 
+                // 保存任务数据供后续使用
+                window.lastTaskData = data;
+                
                 // 清理运行时的UI元素
                 const runningHint = document.querySelector('.running-hint');
                 if (runningHint) {
@@ -719,9 +722,15 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
                     // 有产品数据，认为任务成功
                     displayResults(data.parsed_products, false, false);
                     statusText.textContent = '✅ 任务完成';
+                    
+                    // 显示Browser-Use完整结果（在显示产品后）
+                    displayBrowserUseResults(data);
                 } else if (data.execution_error) {
                     showExecutionErrorMessage(data.execution_error);
                     statusText.textContent = '⚠️ 任务执行遇到问题';
+                    
+                    // 显示Browser-Use完整结果（即使有错误）
+                    displayBrowserUseResults(data);
                 } else if ((data.status === 'finished' || data.status === 'partial_success') && data.result) {
                     displayResults(data.result, data.status === 'partial_success', data.recovered_from_logs);
                     
@@ -729,16 +738,28 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
                     if (data.status === 'partial_success') {
                         showPartialSuccessMessage(data.message || '任务中断，但成功恢复了部分数据');
                     }
+                    
+                    // 显示Browser-Use完整结果（在显示产品后）
+                    displayBrowserUseResults(data);
                 } else if (data.status === 'finished' && (!data.result && !data.parsed_products)) {
                     // 任务完成但没有有效结果
                     showExecutionErrorMessage('任务已完成但未找到有效的AI产品数据。这可能是由于网络问题或搜索目标网站不可访问导致的。');
                     statusText.textContent = '⚠️ 任务完成但无有效结果';
+                    
+                    // 显示Browser-Use完整结果（即使没有产品）
+                    displayBrowserUseResults(data);
                 } else if (data.status === 'failed') {
                     statusText.textContent = '❌ 任务执行失败';
                     showExecutionErrorMessage('任务执行失败，请检查网络连接或稍后重试。');
+                    
+                    // 显示Browser-Use完整结果（即使失败）
+                    displayBrowserUseResults(data);
                 } else {
                     // 对于stopped状态，也要重置UI
                     statusText.textContent = '⏹️ 任务已停止';
+                    
+                    // 显示Browser-Use完整结果（即使停止）
+                    displayBrowserUseResults(data);
                     showExecutionErrorMessage('任务执行被中断，可能是由于网络问题或其他技术原因。');
                 }
             }
@@ -965,6 +986,9 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
                         }
                     }, 5000);
                 }
+                
+                // 显示Browser-Use完整结果（在成功获取产品后）
+                displayBrowserUseResults(window.lastTaskData);
             } else {
                 console.log(`[DEBUG] 数据库中暂无产品数据: ${data.message || '未知原因'}`);
                 // 如果数据库中没有数据且还有重试次数，继续重试
@@ -979,6 +1003,9 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
                     
                     // 显示重新搜索建议
                     showNoProductsFoundMessage();
+                    
+                    // 显示Browser-Use完整结果（即使没有产品）
+                    displayBrowserUseResults(window.lastTaskData);
                 }
             }
         } catch (error) {
@@ -1130,6 +1157,12 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         // 如果是恢复的数据，添加特殊样式
         if (isRecovered) {
             card.querySelector('.product-source').innerHTML = '<span class="source-tag recovered">Recovered from logs</span>';
+        } else {
+            // 隐藏product-source区域，因为不再需要显示标签
+            const productSource = card.querySelector('.product-source');
+            if (productSource) {
+                productSource.style.display = 'none';
+            }
         }
 
         return card;
