@@ -1005,8 +1005,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             }
         }
 
-        // 自动滚动到错误消息
-        errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // 移除自动滚动，错误消息会自然显示在页面上
     }
 
     // 更新状态UI
@@ -1236,13 +1235,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         searchResultsContainer.innerHTML = resultsHtml;
         searchResultsContainer.style.display = 'block';
         
-        // 自动滚动到搜索结果区域
-        setTimeout(() => {
-            searchResultsContainer.scrollIntoView({ 
-                behavior: 'smooth', 
-                block: 'start' 
-            });
-        }, 500);
+        // 移除自动滚动，搜索结果会自然显示在页面上
     }
 
     // 创建产品卡片HTML
@@ -1490,7 +1483,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         
         stepsContainer.style.display = 'block';
         
-        // 自动滚动到最下方显示最新步骤
+        // 自动滚动到最下方显示最新步骤（避免动态刷新打断用户浏览）
         setTimeout(() => {
             const stepsList = document.getElementById('steps-list-container');
             if (stepsList) {
@@ -1534,7 +1527,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
         // 更新步骤计数
         updateStepsCount(steps.length);
 
-        // 平滑滚动到最新步骤
+        // 平滑滚动到最新步骤（避免动态更新打断用户浏览）
         setTimeout(() => {
             stepsList.scrollTop = stepsList.scrollHeight;
         }, 50);

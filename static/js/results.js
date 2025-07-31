@@ -79,10 +79,7 @@ document.addEventListener('DOMContentLoaded', function() {
             searchList.appendChild(recordElement);
         });
         
-        // Auto scroll to bottom to show latest records
-        setTimeout(() => {
-            searchList.scrollTop = searchList.scrollHeight;
-        }, 100);
+        // 移除自动滚动，让用户自然浏览内容
     }
 
     // Create search record element

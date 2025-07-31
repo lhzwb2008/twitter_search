@@ -155,12 +155,17 @@ class ProductsManager {
     
     showLoadingProducts() {
         this.loadingProducts.classList.remove('hidden');
-        this.productsContainer.style.display = 'none';
+        this.productsContainer.classList.add('hidden');
     }
     
     hideLoadingProducts() {
         this.loadingProducts.classList.add('hidden');
-        this.productsContainer.style.display = 'block';
+        this.productsContainer.classList.remove('hidden');
+        
+        // 确保滚动位置在顶部，防止自动滚动到底部
+        setTimeout(() => {
+            this.productsContainer.scrollTop = 0;
+        }, 50);
     }
     
     renderProducts(data) {
@@ -273,4 +278,13 @@ class ProductsManager {
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', () => {
     new ProductsManager();
+    
+    // 确保页面加载后滚动位置在顶部
+    setTimeout(() => {
+        window.scrollTo(0, 0);
+        const productsContainer = document.getElementById('products-container');
+        if (productsContainer) {
+            productsContainer.scrollTop = 0;
+        }
+    }, 100);
 }); 
