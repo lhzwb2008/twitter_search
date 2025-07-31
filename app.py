@@ -1037,7 +1037,7 @@ def get_task_products(task_id):
                 return jsonify({
                     'products': products,
                     'total_found': len(products),
-                    'summary': f'成功找到 {len(products)} 个AI产品并已保存到数据库'
+                    'summary': f'Successfully found {len(products)} AI products and saved to database'
                 })
                 
     except Exception as e:

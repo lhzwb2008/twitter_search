@@ -1059,7 +1059,7 @@ CRITICAL: Return ONLY the JSON object, no explanations.`;
             if (response.ok && data.products && data.products.length > 0) {
                 console.log(`[DEBUG] 成功从数据库获取 ${data.products.length} 个产品`);
                 displaySearchResults(data, false, false);
-                statusText.textContent = `✅ 任务完成！已找到 ${data.products.length} 个AI产品并成功入库`;
+                statusText.textContent = `✅ Task completed! Found ${data.products.length} AI products and successfully saved to database`;
                 
                 // 显示成功提示
                 const successMessage = document.createElement('div');
